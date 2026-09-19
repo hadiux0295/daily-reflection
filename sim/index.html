@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Daily Reflection — Alexa+ simulation</title>
+<style>
+  :root { --bg:#0b0d14; --panel:#131625; --line:#232842; --text:#e8e9f1; --muted:#8b90ad; --accent:#4fd1c5; --accent2:#7c8cff; --warn:#ffb86b; --danger:#ff6b81; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  a { color:var(--accent); }
+  header { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; font-weight:600; }
+  header .sub { color:var(--muted); font-size:13px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-left:auto; }
+  .chip { font-size:12px; padding:3px 9px; border:1px solid var(--line); border-radius:999px; color:var(--muted); background:var(--panel); }
+  .chip.on { color:var(--accent); border-color:var(--accent); }
+  .chip.off { color:var(--warn); border-color:var(--warn); }
+  main { display:grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap:16px; padding:16px 20px; max-width:1200px; margin:0 auto; }
+  @media (max-width: 860px) { main { grid-template-columns:1fr; } }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; min-width:0; }
+  section h2 { font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 12px; font-weight:600; }
+  .voice { display:flex; flex-direction:column; align-items:center; gap:10px; padding:10px 0 16px; }
+  .orb { width:96px; height:96px; border-radius:50%; border:none; cursor:pointer; background:radial-gradient(circle at 35% 35%, #7fe6dc, var(--accent) 55%, #1f6f68); box-shadow:0 0 0 0 rgba(79,209,197,.35); transition:box-shadow .3s, transform .2s; color:#062a27; font-size:34px; }
+  .orb:hover { transform:scale(1.04); }
+  .orb.listening { animation:pulse 1.2s infinite; }
+  .orb.speaking { background:radial-gradient(circle at 35% 35%, #b3bcff, var(--accent2) 55%, #2b3499); animation:pulse 1.6s infinite; }
+  .orb.thinking { background:radial-gradient(circle at 35% 35%, #ffd9a8, var(--warn) 55%, #8a5a1f); animation:pulse .9s infinite; }
+  .orb:disabled { opacity:.5; cursor:not-allowed; animation:none; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(124,140,255,.45)} 70%{box-shadow:0 0 0 26px rgba(124,140,255,0)} 100%{box-shadow:0 0 0 0 rgba(124,140,255,0)} }
+  .state { color:var(--muted); font-size:13px; min-height:20px; }
+  .quick { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  button.sm { background:transparent; color:var(--text); border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13px; cursor:pointer; }
+  button.sm:hover { border-color:var(--accent); }
+  button.sm.danger { color:var(--danger); }
+  button.sm.danger:hover { border-color:var(--danger); }
+  .log { display:flex; flex-direction:column; gap:10px; max-height:46vh; overflow:auto; padding:4px 2px; }
+  .msg { max-width:88%; padding:10px 14px; border-radius:14px; white-space:pre-wrap; word-wrap:break-word; }
+  .msg.user { align-self:flex-end; background:#1e2440; border-bottom-right-radius:4px; }
+  .msg.assistant { align-self:flex-start; background:#0f2a2b; border:1px solid #1c4d4a; border-bottom-left-radius:4px; }
+  .msg.system { align-self:center; color:var(--muted); font-size:13px; background:transparent; }
+  .msg.crisis { align-self:stretch; max-width:100%; background:#3a1220; border:1px solid var(--danger); }
+  .compose { display:flex; gap:8px; margin-top:12px; }
+  .compose input { flex:1; background:#0e1120; border:1px solid var(--line); color:var(--text); border-radius:10px; padding:10px 12px; font-size:15px; }
+  .compose button { background:var(--accent); color:#062a27; border:none; border-radius:10px; padding:10px 16px; font-weight:600; cursor:pointer; }
+  .compose button:disabled { opacity:.5; cursor:not-allowed; }
+  .trace { display:flex; flex-direction:column; gap:8px; max-height:52vh; overflow:auto; }
+  details { border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:#0e1120; }
+  summary { cursor:pointer; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; }
+  summary .ms { color:var(--muted); float:right; }
+  pre { margin:8px 0 0; font-size:12px; white-space:pre-wrap; word-break:break-word; color:#c9cde6; max-height:260px; overflow:auto; }
+  .empty { color:var(--muted); font-size:13px; }
+  .lens { display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:8px; margin-top:8px; }
+  .lens input, .lens select { width:100%; background:#0e1120; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 8px; font-size:13px; }
+  .lens label { font-size:11px; color:var(--muted); display:block; margin-bottom:2px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+  .disclosure { grid-column:1 / -1; font-size:12.5px; color:#a9aecb; line-height:1.7; background:#0e1120; }
+  .disclosure b { color:var(--text); }
+  .settings { font-size:13px; color:var(--muted); }
+  .settings input { width:100%; background:#0e1120; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 8px; margin-top:4px; }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:#c9cde6; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Daily Reflection <span class="sub">— Alexa+ simulation</span></h1>
+    <div class="sub">A simulated voice assistant driving a real MCP server. Say or type <em>“Alexa, let's do my daily reflection.”</em></div>
+  </div>
+  <div class="chips" id="chips"><span class="chip">connecting…</span></div>
+</header>
+
+<main>
+  <section>
+    <h2>Conversation</h2>
+    <div class="voice">
+      <button class="orb" id="orb" title="Hold a conversation by voice" aria-label="Talk">🎙</button>
+      <div class="state" id="state">Tap the orb and speak, or type below.</div>
+      <div class="quick">
+        <button class="sm" data-say="Alexa, let's do my daily reflection.">Start today's reflection</button>
+        <button class="sm" data-say="Alexa, read me my reflection history for this week.">This week's history</button>
+        <button class="sm" id="ttsToggle">🔊 Voice replies: on</button>
+      </div>
+    </div>
+    <div class="log" id="log"></div>
+    <form class="compose" id="compose">
+      <input id="text" placeholder="Type what you would say to Alexa…" autocomplete="off" maxlength="2000">
+      <button id="send" type="submit">Send</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Behind the scenes — MCP calls</h2>
+    <div class="trace" id="trace"><div class="empty">Every tool call the host model makes over Streamable HTTP appears here, with arguments and the raw result.</div></div>
+    <h2 style="margin-top:18px">Optional lens — birth profile</h2>
+    <div class="empty">Sends a plain sentence to the assistant; the assistant calls <code>get_daily_lens</code> and uses the result as today's theme. Not a prediction.</div>
+    <div class="lens">
+      <div><label>Year</label><input id="by" type="number" min="1900" max="2100" placeholder="1990"></div>
+      <div><label>Month</label><input id="bm" type="number" min="1" max="12" placeholder="5"></div>
+      <div><label>Day</label><input id="bd" type="number" min="1" max="31" placeholder="15"></div>
+      <div><label>Hour (0–23)</label><input id="bh" type="number" min="0" max="23" placeholder="10"></div>
+      <div><label>Birth time zone</label><input id="btz" placeholder="Asia/Seoul"></div>
+    </div>
+    <div class="row">
+      <button class="sm" id="lensSend">Use this birth profile today</button>
+      <label class="settings" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="remember" style="width:auto;margin:0"> remember it on the server</label>
+    </div>
+    <h2 style="margin-top:18px">Your data</h2>
+    <div class="settings">Profile id for this browser: <code id="pid"></code>. Journal entries are stored on the server under this id only.</div>
+    <div class="row">
+      <button class="sm danger" id="delete">Delete my data on the server</button>
+      <button class="sm" id="reset">Clear this conversation</button>
+    </div>
+    <details style="margin-top:12px"><summary>Access token (only if this server requires one)</summary>
+      <div class="settings">Judges: the token is in the Devpost testing instructions. It is kept in this browser only.<input id="token" placeholder="X-DR-Token value"></div>
+    </details>
+  </section>
+
+  <section class="disclosure" id="disclosure">
+    <b>About this simulation.</b> This is not Amazon Alexa. The conversation is voiced by an AI language model (<b id="modelName">the model named by the server</b>, via OpenRouter) acting as a simulated Alexa+ host; the spoken audio is your browser's own speech synthesis. What you say or type is sent to that model provider to generate the reply, and voice input uses your browser's speech recognition, which may send audio to the browser vendor. Reflection prompts come from a rule-based question bank and, when you give a birth profile, from a rule-based Four-Pillars (saju) calculator. It is for reflection and entertainment — not a prediction of the future, and not medical, psychological, legal, or financial advice. Journal entries are stored on the server under this browser's profile id until you delete them with the button above. Intended for ages 13 and up. If you are in crisis or thinking about harming yourself, please reach out now: <a href="https://findahelpline.com" target="_blank" rel="noopener">findahelpline.com</a> lists free, confidential helplines by country.
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const log = $("log"), trace = $("trace"), orb = $("orb"), state = $("state"), input = $("text"), sendBtn = $("send");
+  const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+  let profile = store.get("dr_profile", "");
+  if (!profile) { profile = "web-" + Math.random().toString(16).slice(2, 10); store.set("dr_profile", profile); }
+  $("pid").textContent = profile;
+  $("token").value = store.get("dr_token", "");
+  $("token").addEventListener("change", (e) => store.set("dr_token", e.target.value.trim()));
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Los_Angeles";
+  let history = [];
+  let tts = store.get("dr_tts", "on") === "on";
+  let busy = false, authRequired = false;
+  const setTts = (v) => { tts = v; store.set("dr_tts", v ? "on" : "off"); $("ttsToggle").textContent = v ? "🔊 Voice replies: on" : "🔇 Voice replies: off"; if (!v) speechSynthesis.cancel(); };
+  setTts(tts);
+  $("ttsToggle").onclick = () => setTts(!tts);
+
+  const headers = () => { const h = { "Content-Type": "application/json" }; const t = store.get("dr_token", ""); if (t) h["X-DR-Token"] = t; return h; };
+
+  function addMsg(role, text) {
+    const d = document.createElement("div"); d.className = "msg " + role; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+  }
+  function addTrace(t) {
+    if (trace.querySelector(".empty")) trace.innerHTML = "";
+    const d = document.createElement("details");
+    const s = document.createElement("summary"); s.textContent = "tools/call " + t.tool; const ms = document.createElement("span"); ms.className = "ms"; ms.textContent = t.ms + " ms"; s.appendChild(ms);
+    const pre = document.createElement("pre"); pre.textContent = "→ " + JSON.stringify(t.args) + "\n\n← " + JSON.stringify(t.result, null, 2);
+    d.append(s, pre); trace.prepend(d);
+  }
+  function speak(text) {
+    if (!tts || !("speechSynthesis" in window)) return Promise.resolve();
+    return new Promise((resolve) => {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.rate = 1.0;
+      const v = speechSynthesis.getVoices().find((x) => /en[-_]US/i.test(x.lang) && /female|samantha|aria|jenny|zira/i.test(x.name)) || speechSynthesis.getVoices().find((x) => /en[-_]US/i.test(x.lang));
+      if (v) u.voice = v;
+      orb.classList.add("speaking"); state.textContent = "Speaking…";
+      u.onend = u.onerror = () => { orb.classList.remove("speaking"); state.textContent = "Tap the orb to answer."; resolve(); };
+      speechSynthesis.speak(u);
+    });
+  }
+
+  async function send(text) {
+    text = (text || "").trim(); if (!text || busy) return;
+    busy = true; sendBtn.disabled = true; orb.classList.add("thinking"); state.textContent = "Thinking… (free-tier model, may take 10–20 s)";
+    addMsg("user", text); history.push({ role: "user", content: text });
+    try {
+      const res = await fetch("/sim/chat", { method: "POST", headers: headers(), body: JSON.stringify({ messages: history, profile_id: profile, tz }) });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const why = res.status === 401 ? "This server requires an access token — open “Access token” on the right and paste it." : (out.message || out.error || ("HTTP " + res.status));
+        addMsg("system", why); history.pop(); return;
+      }
+      (out.trace || []).forEach(addTrace);
+      const replyHasReferral = out.crisis_referral && out.reply.startsWith(out.crisis_referral.slice(0, 40));
+      if (out.crisis_referral && !replyHasReferral) addMsg("crisis", out.crisis_referral);
+      addMsg("assistant", out.reply); history.push({ role: "assistant", content: out.reply, trace: (out.trace || []).map((t) => ({ tool: t.tool, args: t.args, result: t.result })) });
+      state.textContent = "Turn took " + (out.ms / 1000).toFixed(1) + " s · " + (out.trace || []).length + " MCP call(s)";
+      await speak((out.crisis_referral && !replyHasReferral ? out.crisis_referral + " " : "") + out.reply);
+    } catch (e) {
+      addMsg("system", "Network error: " + e.message); history.pop();
+    } finally { busy = false; sendBtn.disabled = false; orb.classList.remove("thinking"); }
+  }
+
+  $("compose").addEventListener("submit", (e) => { e.preventDefault(); const t = input.value; input.value = ""; send(t); });
+  document.querySelectorAll("[data-say]").forEach((b) => b.addEventListener("click", () => send(b.dataset.say)));
+  $("reset").onclick = () => { history = []; log.innerHTML = ""; trace.innerHTML = '<div class="empty">Cleared.</div>'; speechSynthesis.cancel(); };
+  $("delete").onclick = async () => {
+    if (!confirm("Delete every journal entry and any remembered birth profile stored under " + profile + "?")) return;
+    const res = await fetch("/profiles/" + encodeURIComponent(profile), { method: "DELETE", headers: headers() });
+    const out = await res.json().catch(() => ({}));
+    addMsg("system", res.ok ? "Deleted on the server: " + (out.entries_deleted ?? 0) + " entries, " + (out.profile_deleted ? "birth profile removed." : "no birth profile stored.") : "Delete failed: " + (out.error || res.status));
+  };
+  $("lensSend").onclick = () => {
+    const y = $("by").value, m = $("bm").value, d = $("bd").value, h = $("bh").value, z = $("btz").value.trim();
+    if (!(y && m && d && h !== "" && z)) { addMsg("system", "Fill in year, month, day, hour and a birth time zone first."); return; }
+    send(`Alexa, here is my birth profile: year ${y}, month ${m}, day ${d}, hour ${h}, time zone ${z}. ${$("remember").checked ? "Please remember it." : "Do not store it."} Use it as today's lens.`);
+  };
+
+  // Voice input (Chrome/Edge: webkitSpeechRecognition; otherwise typing only — noted in the friction log).
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { orb.disabled = true; orb.title = "Speech recognition is not available in this browser — type instead"; state.textContent = "No speech recognition in this browser (Chrome or Edge has it). Type below."; }
+  else {
+    const rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false;
+    let interim = null;
+    rec.onstart = () => { orb.classList.add("listening"); state.textContent = "Listening…"; };
+    rec.onresult = (e) => {
+      let text = ""; for (const r of e.results) text += r[0].transcript;
+      if (!interim) interim = addMsg("system", ""); interim.textContent = "… " + text;
+      if (e.results[e.results.length - 1].isFinal) { interim.remove(); interim = null; send(text); }
+    };
+    rec.onerror = (e) => { state.textContent = "Mic: " + e.error; };
+    rec.onend = () => { orb.classList.remove("listening"); if (interim) { interim.remove(); interim = null; } };
+    orb.onclick = () => { if (busy) return; speechSynthesis.cancel(); if (orb.classList.contains("listening")) rec.stop(); else rec.start(); };
+  }
+
+  // Server facts for the chips + the exact model name in the disclosure.
+  fetch("/health").then((r) => r.json()).then((h) => {
+    authRequired = !!h.auth_required;
+    const chips = [
+      ["MCP " + h.protocolVersion + " · streamable-http", "on"],
+      [h.lens_configured ? "saju lens: connected" : "saju lens: off", h.lens_configured ? "on" : "off"],
+      [h.sim && h.sim.configured ? "host model: " + h.sim.model + (h.sim.api_base && /nebius/.test(h.sim.api_base) ? " · Nebius Token Factory" : "") : "host model: not configured", h.sim && h.sim.configured ? "on" : "off"],
+      [authRequired ? "token required" : "open demo", ""],
+    ];
+    $("chips").innerHTML = chips.map(([t, c]) => `<span class="chip ${c}">${t.replace(/</g, "&lt;")}</span>`).join("");
+    if (h.sim && h.sim.model) $("modelName").textContent = h.sim.model;
+    if (authRequired && !store.get("dr_token", "")) addMsg("system", "This server requires an access token. Open “Access token” on the right and paste it before starting.");
+  }).catch(() => { $("chips").innerHTML = '<span class="chip off">server unreachable</span>'; });
+})();
+</script>
+</body>
+</html>

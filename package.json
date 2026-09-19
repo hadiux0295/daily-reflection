@@ -1,0 +1,16 @@
+{
+  "name": "daily-reflection-mcp",
+  "version": "0.0.1",
+  "description": "Daily Reflection — a reflection-journal MCP server (Streamable HTTP, MCP 2025-11-25) for Alexa+ and a web simulation. Built for the Amazon Build, Ship, Shape hackathon 2026.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"tests/*.test.mjs\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.23.8"
+  }
+}

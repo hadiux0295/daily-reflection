@@ -1,0 +1,8 @@
+{ "request": { "tool": "get_reflection_prompt", "arguments": { "tz": "America/Los_Angeles", "mood": "low" } },
+  "response": { "date": "2026-10-09", "theme": "small wins",
+    "questions": ["What is one thing that went slightly better than yesterday?",
+                  "Who did you not have to explain yourself to today?",
+                  "What can wait until Monday?"],
+    "weekday": "Fri", "season": "autumn",
+    "lens_available": false,
+    "disclosure": "This conversation is voiced by an AI assistant. Reflection prompts come from a rule-based question bank and, when a birth profile is given, from a rule-based Four-Pillars (saju) calculator. For reflection and entertainment only — not prophecy, medical, psychological, legal, or financial advice. Journal entries are stored under your profile id until you delete them." } }
