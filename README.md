@@ -26,6 +26,8 @@ submission period (after 2026-08-26), all in this repo:
   the author's live product [Saju Today](https://saju.hun-is.com), where Nemotron on Token Factory reads today's
   birth-chart facts *and* the user's own recent answers, names one agreement or tension between them, and asks one
   non-predictive question (Best Apps & Agents track).
+- **The 오늘의 성찰 source** — the Token Factory client, crisis check, two-turn route and card UI from Saju Today are
+  published read-only in [`saju_reflection/`](saju_reflection/) (the chart engine stays closed).
 - **Korean crisis patterns** (`src/tools.js`): the deterministic crisis check now covers Korean wording; the referral
   line is shown before anything reaches the model.
 
