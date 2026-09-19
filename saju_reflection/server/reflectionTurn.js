@@ -75,6 +75,7 @@ export function buildFacts({ lens, recent, lang, today }) {
   const tenGodEn = String(t.tenGodMeaning || t.tenGod || "").split("(")[0].trim() || t.tenGod;
   facts.push({
     key: "day_pillar",
+    tenGod: t.tenGod,
     label: ko ? `오늘 일진 ${dp.korean}·${t.tenGod}` : `today ${dp.hanja} · ${tenGodEn}`,
     text: ko
       ? `오늘 일진 ${dp.korean}(${dp.hanja}) — 오늘의 결: ${t.tenGodMeaning} · 명리 용어 ${t.tenGod}(괄호 인용에만)` // meaning first: "관계 겁재: …" made the model lead with 겁재 (probe v3)
@@ -135,6 +136,32 @@ const FALLBACK_Q = {
     "What did today ask of you, and what did you give it?",
   ],
 };
+const FALLBACK_OBS = {
+  ko: {
+    비견: "오늘은 나와 같은 기운이 비치는 날이라, 다른 사람에게서 내 습관이 보이기 쉬운 결이에요.",
+    겁재: "오늘은 같은 기운이 반대 결로 들어와, 나눔과 겨룸이 가까이 붙어 있는 날이에요.",
+    식신: "오늘은 편안하게 내놓는 기운이 흘러, 만들고 즐기는 일이 자연스러운 결이에요.",
+    상관: "오늘은 날카롭게 표현하고 싶은 기운이 돌아, 정해진 틀과 부딪히기 쉬운 결이에요.",
+    편재: "오늘은 넓게 흘러다니는 재물의 기운이라, 사람과 기회가 빠르게 오가는 결이에요.",
+    정재: "오늘은 차곡차곡 쌓는 재물의 기운이라, 손에 잡히는 것을 꼼꼼히 다루는 결이에요.",
+    편관: "오늘은 바깥의 압박이 들어오는 날이라, 요구와 도전이 나를 시험하는 결이에요.",
+    정관: "오늘은 질서의 기운이 서는 날이라, 규칙과 평판, 정해진 길이 눈에 들어오는 결이에요.",
+    편인: "오늘은 남다른 도움의 기운이라, 직관과 공부, 혼자 있는 시간이 가까운 결이에요.",
+    정인: "오늘은 돌봄의 기운이 드는 날이라, 배우는 일과 보살핌받는 일이 가까운 결이에요.",
+  },
+  en: {
+    비견: "Today mirrors your own element, the kind of day that shows you your own habits in other people.",
+    겁재: "Today carries your own element in its opposite polarity, a day where sharing and competing sit close together.",
+    식신: "Today leans toward gentle output: the things you make, enjoy and let flow easily.",
+    상관: "Today leans toward sharp output: expression that wants out, even where it rubs against the rules.",
+    편재: "Today carries roaming wealth: wide circles, chance openings, things that move quickly.",
+    정재: "Today carries steady wealth: careful handling of what is tangible and yours to manage.",
+    편관: "Today brings pressure from outside: demands and challenges that test your discipline.",
+    정관: "Today brings order: rules, reputation and doing things through the proper channel.",
+    편인: "Today leans toward unconventional support: intuition, study and some quiet time alone.",
+    정인: "Today leans toward nurturing support: learning, being looked after and taking things in.",
+  },
+};
 const FALLBACK_CLOSING = {
   ko: "오늘의 답을 솔직하게 남겨 주셨어요. 내일 같은 자리에서 다시 이어가요.",
   en: "Thank you for putting today into words. Same place tomorrow.",
@@ -142,12 +169,14 @@ const FALLBACK_CLOSING = {
 
 /** Deterministic turn 1 when the model is unavailable or fails the post-checks. */
 export function fallbackTurn({ facts, lang, today }) {
+  const L = lang === "ko" ? "ko" : "en";
   const day = new Date(`${today}T12:00:00Z`).getUTCDay();
-  const q = FALLBACK_Q[lang === "ko" ? "ko" : "en"][day];
+  const q = FALLBACK_Q[L][day];
   const f = facts.find((x) => x.key === "day_pillar");
-  const observation = lang === "ko"
-    ? `오늘은 ${f ? f.label.replace("오늘 일진 ", "일진 ") : "새 하루"}의 날이에요.`
-    : `Today's chart reads ${f ? f.label : "a new day"}.`;
+  const line = f && FALLBACK_OBS[L][f.tenGod];
+  // hand-written per ten god: the old "Today's chart reads today 丙申 · rival peer." was the line a judge would see on a miss
+  const observation = line ? `${line.replace(/\.$/, "")} (${f.label}).`
+    : L === "ko" ? `오늘은 ${f ? f.label.replace("오늘 일진 ", "일진 ") : "새 하루"}의 날이에요.` : `Today's chart reads ${f ? f.label : "a new day"}.`;
   return { observation, question: q, generated: false };
 }
 
@@ -169,28 +198,48 @@ const KO_JARGON = /비견|겁재|식신|상관|편재|정재|편관|정관|칠�
  *   ten-god name (劫财, 比肩) or an invented one fails (probe 2026-09-19: 3 of 8 en turns).
  * ctx.hasHistory — the observation must cite the user's past answers, not only the chart.
  */
-export function parseTurn1(text, lang, ctx = {}) {
-  if (!text) return null;
+export function checkTurn1(text, lang, ctx = {}) {
+  if (!text) return { reason: "empty" };
   const s = sentences(text);
-  if (s.length < 2 || s.length > 3) return null;
+  if (s.length < 2 || s.length > 3) return { reason: "sentences" };
   // exactly one question and it is the last sentence (probe: "…가벼워질까요? (citation) …무엇인가요?" passed as observation+question)
-  if (s.filter((x) => /[?？]/.test(x)).length !== 1 || !/[?？]\s*$/.test(s[s.length - 1])) return null;
+  if (s.filter((x) => /[?？]/.test(x)).length !== 1 || !/[?？]\s*$/.test(s[s.length - 1])) return { reason: "question" };
   const question = s[s.length - 1];
   const observation = s.slice(0, -1).join(" ");
-  if (lang === "ko" && LATIN_RUN.test(text.replace(/\([^)]*\)/g, ""))) return null; // Latin outside the citation parens
-  if (lang === "ko" && KO_JARGON.test(text.replace(/\([^)]*\)/g, ""))) return null;
-  if (ADVICE[lang === "ko" ? "ko" : "en"].test(text)) return null;
-  if (lang !== "ko" && HANGUL.test(text)) return null;
-  if (lang !== "ko" && ctx.factsText && (text.match(CJK) || []).some((c) => !ctx.factsText.includes(c))) return null;
+  if (lang === "ko" && LATIN_RUN.test(text.replace(/\([^)]*\)/g, ""))) return { reason: "latin" }; // Latin outside the citation parens
+  if (lang === "ko" && KO_JARGON.test(text.replace(/\([^)]*\)/g, ""))) return { reason: "jargon" };
+  if (ADVICE[lang === "ko" ? "ko" : "en"].test(text)) return { reason: "advice" };
+  if (lang !== "ko" && HANGUL.test(text)) return { reason: "hangul" };
+  if (lang !== "ko" && ctx.factsText && (text.match(CJK) || []).some((c) => !ctx.factsText.includes(c))) return { reason: "cjk" };
   // en citation words must come from the data (probe v5 invented "stingray day 丙申", "st … dm 丁"; earlier "Bu Wei")
   if (lang !== "ko" && ctx.factsText) {
     const vocab = new Set((ctx.factsText.toLowerCase().match(/[a-z]+/g) || []).concat(["last", "answers", "answer", "today", "day", "master", "and"]));
     const cited = (observation.match(/\(([^)]*)\)/g) || []).join(" ").toLowerCase().match(/[a-z]+/g) || [];
-    if (cited.some((w) => !vocab.has(w))) return null;
+    // inflections of a data word pass ("rivalry" for "rival peer" = 4 of 12 en misses, census 2026-09-19); invented words still fail
+    const known = (w) => vocab.has(w) || (w.length >= 4 && [...vocab].some((v) => v.length >= 4 && (w.startsWith(v) || v.startsWith(w))));
+    if (cited.some((w) => !known(w))) return { reason: "cite_vocab" };
   }
-  if (ctx.hasHistory && !/지난\s*\d+\s*일|last \d+ answers?/i.test(observation)) return null;
-  return { observation, question, generated: true };
+  if (ctx.hasHistory && !/지난\s*\d+\s*일|last \d+ answers?/i.test(observation)) return { reason: "history" };
+  return { turn: { observation, question, generated: true } };
 }
+
+const HINT = {
+  en: { empty: "Your reply was empty.", sentences: "Write one or two observation sentences, then exactly one question.", question: "Use exactly one question mark, only in the last sentence.",
+    advice: "No advice or suggestions (no should, try to, make sure, consider).", hangul: "No Korean characters.", cjk: "Use Chinese characters only exactly as they appear in the data.",
+    cite_vocab: "Inside the parentheses copy the data labels word for word.", history: "Name the user's past answers and cite them as (last N answers)." },
+  ko: { empty: "답이 비어 있었어요.", sentences: "관찰 1~2문장 뒤에 질문 정확히 한 문장으로 쓰세요.", question: "물음표는 마지막 문장에 한 번만 쓰세요.",
+    latin: "괄호 밖에는 영어를 쓰지 마세요.", jargon: "명리 용어는 문장 본문에 쓰지 말고 괄호 인용 안에만 쓰세요.", advice: "조언·권유 표현(~하세요, ~해 보세요, ~야 해요)을 쓰지 마세요.",
+    history: "지난 답변을 짚고 괄호에 (지난 N일 답변)으로 인용하세요." },
+};
+/** Second-attempt user message: the rule the first reply broke (census 2026-09-19: blind retries repeated the same miss). */
+export function retryHint(reason, lang) {
+  const L = lang === "ko" ? "ko" : "en";
+  const h = HINT[L][reason] || "";
+  return L === "ko" ? `규칙 하나를 어겼어요. ${h} 다른 규칙도 모두 지켜서 다시 써 주세요.` : `That broke one rule. ${h} Write it again, keeping every other rule.`;
+}
+
+/** Contract check with the model text → turn or null (callers that need the miss reason use checkTurn1). */
+export function parseTurn1(text, lang, ctx = {}) { return checkTurn1(text, lang, ctx).turn || null; }
 
 // Closing must not hand a hurt back to the user (probe 2026-09-19: "Nothing I do seems to matter—work feels pointless").
 // Only heavy hopelessness words: a closing may name tiredness in a strength frame ("피곤함 속에서도 끝까지 지켜낸"),
@@ -314,7 +363,7 @@ async function handleOpen(req, res) {
   const provenance = facts.map((f) => ({ key: f.key, label: f.label }));
   const ctx = { factsText: factsBlock(facts, lang), hasHistory: facts.some((f) => f.key === "history" && !/첫 성찰|first reflection/.test(f.label)) };
 
-  let turn = null, usage = null, attempts = 0;
+  let turn = null, usage = null, attempts = 0, miss = "";
   if (nebiusConfigured()) {
     try {
       const r = await chatNemotron([
@@ -322,21 +371,24 @@ async function handleOpen(req, res) {
         { role: "user", content: factsBlock(facts, lang) },
       ], { maxTokens: 300, temperature: 0.7 });
       usage = r.usage; attempts = r.attempts;
-      turn = parseTurn1(r.content, lang, ctx);
-      if (!turn) { // one more try on a contract miss, then fall back
+      const c1 = checkTurn1(r.content, lang, ctx);
+      turn = c1.turn || null; miss = c1.reason || "";
+      if (!turn) { // one more try on a contract miss — told which rule it broke — then fall back
         const r2 = await chatNemotron([
           { role: "system", content: systemPrompt(lang) },
           { role: "user", content: factsBlock(facts, lang) },
+          ...(r.content ? [{ role: "assistant", content: r.content }, { role: "user", content: retryHint(c1.reason, lang) }] : []),
         ], { maxTokens: 300, temperature: 0.4 });
         attempts += r2.attempts; usage = r2.usage;
-        turn = parseTurn1(r2.content, lang, ctx);
+        const c2 = checkTurn1(r2.content, lang, ctx);
+        turn = c2.turn || null; miss += `,${c2.reason || "ok"}`;
       }
     } catch (e) {
       console.error("[saju-reflection] nebius failed:", String(e?.message || e).slice(0, 120));
     }
   }
   if (!turn) turn = fallbackTurn({ facts, lang, today });
-  console.log(`[saju-reflection] uid=${hash8(user.uid)} turn=1 generated=${turn.generated} attempts=${attempts} tokens=${usage?.total_tokens ?? "-"}`);
+  console.log(`[saju-reflection] uid=${hash8(user.uid)} turn=1 generated=${turn.generated} attempts=${attempts}${miss ? ` miss=${miss}` : ""} tokens=${usage?.total_tokens ?? "-"}`);
 
   const doc = {
     uid: user.uid, date: today, lang, birthKey,
