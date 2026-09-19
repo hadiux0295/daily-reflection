@@ -1,7 +1,9 @@
 // Deterministic crisis check for free-text emotional input (§5.5 baseline: emotion/crisis input apps need a
 // one-line referral). Runs BEFORE any model call; nothing here touches an LLM.
 // English list = Daily Reflection tools.js (2026-09-05). Korean list added 2026-09-18 for 「오늘의 성찰」.
-// Policy: over-match is acceptable (the entry is still saved, only the model turn is replaced by the referral).
+// Policy: over-match is acceptable. Narrowed 2026-09-19 only where intent is absent: bare past "jumped off the bus"
+// (intent verbs or a height noun still match) and "can't go on working/reading…" (task gerunds; "with" stays a match).
+// Policy (orig.): over-match is acceptable (the entry is still saved, only the model turn is replaced by the referral).
 const PATTERNS = [
   // en
   /\bkill(?:ing)? myself\b/i, /\bsuicid(?:e|al)\b/i, /\bend (?:it all|my life)\b/i, /\bwant(?:ed)? to die\b/i,
@@ -10,8 +12,8 @@ const PATTERNS = [
   // widened 2026-09-19 (live miss: "I dont want to be alive anymore")
   /\b(?:don'?t|do not|didn'?t|never) want(?:ed)? to (?:be alive|live|exist|be here|wake up)\b/i, /\bwant(?:ed)? to die\b/i, /\bwanna die\b/i,
   /\bwish(?:ed)? I (?:was|were|weren'?t|wasn'?t) (?:dead|alive|born|here)\b/i, /\brather be dead\b/i, /\bending my life\b/i,
-  /\btake my (?:own )?life\b/i, /\bno point (?:in|to) (?:living|going on|life)\b/i, /\bcan'?t go on\b/i, /\bdisappear (?:forever|for good)\b/i,
-  /\boverdos(?:e|ing)\b/i, /\bjump(?:ing)? off\b/i, /\bhang(?:ing)? myself\b/i, /\bnot (?:want(?:ing)?|going) to be alive\b/i,
+  /\btake my (?:own )?life\b/i, /\bno point (?:in|to) (?:living|going on|life)\b/i, /\bcan'?t go on\b(?!\s+(?:working|reading|writing|watching|studying)\b)/i, /\bdisappear (?:forever|for good)\b/i,
+  /\boverdos(?:e|ed|ing)\b/i, /\bjump(?:ing|ed)? off (?:a |the |my )?(?:bridge|building|roof|cliff|balcony|ledge|tower)\b/i, /\b(?:want(?:ed)?|wanna|going|gonna|about|thinking (?:of|about)|tempted|ready|feel like)\s+(?:to\s+)?jump(?:ing)? off\b/i, /\bjump(?:ing)? in front of\b/i, /\bhang(?:ing)? myself\b/i, /\bnot (?:want(?:ing)?|going) to be alive\b/i,
   /죽을래/, /죽고싶/, /죽는\s*게\s*낫/, /죽으면\s*편/, /사는\s*게\s*의미\s*없/, /살아서\s*뭐/, /살\s*맛이?\s*없/, /목숨을?\s*끊/,
   /세상을?\s*떠나고\s*싶/, /그만\s*살고\s*싶/, /살고\s*싶지가?\s*않/, /죽어\s*버릴/,
   // ko — stems, so particles/endings do not matter (죽고 싶다/싶어요/싶은데…)

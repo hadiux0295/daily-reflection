@@ -103,6 +103,7 @@ export default function ReflectionCard({ t, lang, birth, tz, todayKey, onAnswere
                     </button>
                   </div>
                   {error && <p className="gl-refl-wait">{c.error}</p>}
+                  <p className="gl-refl-help">{c.helpline}</p>
                 </>
               ) : (
                 <div className="gl-refl-saved">

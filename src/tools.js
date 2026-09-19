@@ -41,10 +41,19 @@ export const DESCRIPTIONS = {
 
 // ---- helpers ----
 const CRISIS_PATTERNS = [
+  // Same list as saju_app/server/crisis.js (Saju Today 「오늘의 성찰」) — keep the two surfaces identical (2026-09-19).
+  // en
   /\bkill(?:ing)? myself\b/i, /\bsuicid(?:e|al)\b/i, /\bend (?:it all|my life)\b/i, /\bwant(?:ed)? to die\b/i,
   /\bself[- ]?harm/i, /\bhurt(?:ing)? myself\b/i, /\bno reason to live\b/i, /\bnot worth living\b/i,
   /\bcut(?:ting)? myself\b/i, /\bbetter off dead\b/i,
-  // ko (2026-09-18, shared list with the saju today app) — stems, so endings/particles do not matter
+  // widened 2026-09-19 (live miss: "I dont want to be alive anymore")
+  /\b(?:don'?t|do not|didn'?t|never) want(?:ed)? to (?:be alive|live|exist|be here|wake up)\b/i, /\bwant(?:ed)? to die\b/i, /\bwanna die\b/i,
+  /\bwish(?:ed)? I (?:was|were|weren'?t|wasn'?t) (?:dead|alive|born|here)\b/i, /\brather be dead\b/i, /\bending my life\b/i,
+  /\btake my (?:own )?life\b/i, /\bno point (?:in|to) (?:living|going on|life)\b/i, /\bcan'?t go on\b(?!\s+(?:working|reading|writing|watching|studying)\b)/i, /\bdisappear (?:forever|for good)\b/i,
+  /\boverdos(?:e|ed|ing)\b/i, /\bjump(?:ing|ed)? off (?:a |the |my )?(?:bridge|building|roof|cliff|balcony|ledge|tower)\b/i, /\b(?:want(?:ed)?|wanna|going|gonna|about|thinking (?:of|about)|tempted|ready|feel like)\s+(?:to\s+)?jump(?:ing)? off\b/i, /\bjump(?:ing)? in front of\b/i, /\bhang(?:ing)? myself\b/i, /\bnot (?:want(?:ing)?|going) to be alive\b/i,
+  /죽을래/, /죽고싶/, /죽는\s*게\s*낫/, /죽으면\s*편/, /사는\s*게\s*의미\s*없/, /살아서\s*뭐/, /살\s*맛이?\s*없/, /목숨을?\s*끊/,
+  /세상을?\s*떠나고\s*싶/, /그만\s*살고\s*싶/, /살고\s*싶지가?\s*않/, /죽어\s*버릴/,
+  // ko — stems, so particles/endings do not matter (죽고 싶다/싶어요/싶은데…)
   /죽고\s*싶/, /죽어\s*버리/, /죽었으면/, /자살/, /자해/, /살기\s*싫/, /살고\s*싶지\s*않/,
   /사라지고\s*싶/, /없어지고\s*싶/, /끝내\s*버리고\s*싶/, /(?:다|모두)\s*끝내고\s*싶/, /(?:나|날|저|나를)\s*해치/,
   /손목을?\s*긋/, /뛰어내리고\s*싶/, /살\s*이유가?\s*없/, /살\s*가치가?\s*없/,

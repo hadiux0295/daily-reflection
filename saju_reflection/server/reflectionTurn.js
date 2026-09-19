@@ -29,6 +29,9 @@ const MOOD_EN = { low: "low", neutral: "neutral", high: "good" };
 const camelWords = (k) => String(k).replace(/([A-Z])/g, " $1").toLowerCase().trim();
 const STRENGTH_EN = Object.fromEntries(Object.values(StrengthLevel).map((v) => [v.korean, camelWords(v.key)]));
 const SOLAR_TERM_EN = Object.fromEntries(Object.values(SolarTerm).map((v) => [v.korean, camelWords(v.key).replace(/\b\w/g, (c) => c.toUpperCase())]));
+// ko: 극약/태강 etc. are jargon even for saju readers — gloss them in the data so the model never needs the raw term in a sentence (probe 2026-09-19)
+const STRENGTH_KO_GLOSS = { extremelyWeak: "매우 약함", veryWeak: "많이 약함", weak: "약함", neutralWeak: "균형·약간 약함", neutral: "균형", neutralStrong: "균형·약간 강함", strong: "강함", veryStrong: "많이 강함", extremelyStrong: "매우 강함" };
+const STRENGTH_KO = Object.fromEntries(Object.values(StrengthLevel).map((v) => [v.korean, STRENGTH_KO_GLOSS[v.key] ? `${STRENGTH_KO_GLOSS[v.key]}(${v.korean}, 괄호 인용에만)` : v.korean]));
 const ELEMENT_KO = { wood: "나무", fire: "불", earth: "흙", metal: "쇠", water: "물" }; // core emits English element keys; ko chips/data must not carry Latin
 
 function json(res, code, obj) {
@@ -74,14 +77,14 @@ export function buildFacts({ lens, recent, lang, today }) {
     key: "day_pillar",
     label: ko ? `오늘 일진 ${dp.korean}·${t.tenGod}` : `today ${dp.hanja} · ${tenGodEn}`,
     text: ko
-      ? `오늘 일진 ${dp.korean}(${dp.hanja}) — 일간과의 관계 ${t.tenGod}: ${t.tenGodMeaning}`
+      ? `오늘 일진 ${dp.korean}(${dp.hanja}) — 오늘의 결: ${t.tenGodMeaning} · 명리 용어 ${t.tenGod}(괄호 인용에만)` // meaning first: "관계 겁재: …" made the model lead with 겁재 (probe v3)
       : `today's day pillar ${dp.hanja} — relation to the day master: ${t.tenGodMeaning || tenGodEn}`,
   });
   facts.push({
     key: "day_master",
     label: ko ? `일간 ${dm.korean}(${dmEl})` : `day master ${dm.hanja} (${dm.element})`,
     text: ko
-      ? `일간 ${dm.korean}(${dm.hanja}) · 오행 ${dmEl} · 신강약 ${lens.strength?.level ?? "-"}`
+      ? `일간 ${dm.korean}(${dm.hanja}) · 오행 ${dmEl} · 타고난 힘 ${STRENGTH_KO[lens.strength?.level] ?? lens.strength?.level ?? "-"}`
       : `day master ${dm.hanja} · element ${dm.element} · natal strength ${STRENGTH_EN[lens.strength?.level] ?? lens.strength?.level ?? "-"}`,
   });
   if (t.solarTerm) {
@@ -133,8 +136,8 @@ const FALLBACK_Q = {
   ],
 };
 const FALLBACK_CLOSING = {
-  ko: "오늘의 답을 남겼어요. 내일 같은 자리에서 다시 이어가요.",
-  en: "Your answer is saved. Same place tomorrow.",
+  ko: "오늘의 답을 솔직하게 남겨 주셨어요. 내일 같은 자리에서 다시 이어가요.",
+  en: "Thank you for putting today into words. Same place tomorrow.",
 };
 
 /** Deterministic turn 1 when the model is unavailable or fails the post-checks. */
@@ -154,28 +157,67 @@ function sentences(text) {
   return String(text).replace(/\s+/g, " ").trim().split(/(?<=[.?!。？！])\s+/).filter(Boolean);
 }
 
-/** Split + validate the model's turn-1 text. Returns null when it fails the contract. */
-export function parseTurn1(text, lang) {
+const CJK = /[\u3400-\u4DBF\u4E00-\u9FFF]/g;
+// ko: ten-god / strength terms belong in the citation parens only — prompt wording alone left them in the body (probe v2: 5 of 16)
+// advice / "should" wording — the prompt forbids it, the check guarantees it (probe v4: "오늘은 꼼꼼히 챙겨야 할 것 같아요")
+const ADVICE = { ko: /야\s*(?:할\s*(?:것|거|때|일)|해요|합니다|하는\s*날)|하세요|해\s*보세요|보세요|좋겠어요|어떨까요|좋을까요/, en: /\b(?:you should|you need to|try to|make sure|consider)\b/i };
+const KO_JARGON = /비견|겁재|식신|상관|편재|정재|편관|정관|칠살|편인|정인|신강|신약|극왕|극약|태강|태약|중화/;
+
+/**
+ * Split + validate the model's turn-1 text. Returns null when it fails the contract.
+ * ctx.factsText (en) — every Chinese character must already be in the data: pillars pass, a re-translated
+ *   ten-god name (劫财, 比肩) or an invented one fails (probe 2026-09-19: 3 of 8 en turns).
+ * ctx.hasHistory — the observation must cite the user's past answers, not only the chart.
+ */
+export function parseTurn1(text, lang, ctx = {}) {
   if (!text) return null;
   const s = sentences(text);
-  if (s.length < 1 || s.length > 3) return null;
-  const qi = s.map((x, i) => (/[?？]\s*$/.test(x) ? i : -1)).filter((i) => i >= 0).pop();
-  if (qi === undefined || qi < 0) return null;
-  const question = s[qi];
-  const observation = s.filter((_, i) => i !== qi).join(" ");
-  if (!observation) return null;
+  if (s.length < 2 || s.length > 3) return null;
+  // exactly one question and it is the last sentence (probe: "…가벼워질까요? (citation) …무엇인가요?" passed as observation+question)
+  if (s.filter((x) => /[?？]/.test(x)).length !== 1 || !/[?？]\s*$/.test(s[s.length - 1])) return null;
+  const question = s[s.length - 1];
+  const observation = s.slice(0, -1).join(" ");
   if (lang === "ko" && LATIN_RUN.test(text.replace(/\([^)]*\)/g, ""))) return null; // Latin outside the citation parens
+  if (lang === "ko" && KO_JARGON.test(text.replace(/\([^)]*\)/g, ""))) return null;
+  if (ADVICE[lang === "ko" ? "ko" : "en"].test(text)) return null;
   if (lang !== "ko" && HANGUL.test(text)) return null;
+  if (lang !== "ko" && ctx.factsText && (text.match(CJK) || []).some((c) => !ctx.factsText.includes(c))) return null;
+  // en citation words must come from the data (probe v5 invented "stingray day 丙申", "st … dm 丁"; earlier "Bu Wei")
+  if (lang !== "ko" && ctx.factsText) {
+    const vocab = new Set((ctx.factsText.toLowerCase().match(/[a-z]+/g) || []).concat(["last", "answers", "answer", "today", "day", "master", "and"]));
+    const cited = (observation.match(/\(([^)]*)\)/g) || []).join(" ").toLowerCase().match(/[a-z]+/g) || [];
+    if (cited.some((w) => !vocab.has(w))) return null;
+  }
+  if (ctx.hasHistory && !/지난\s*\d+\s*일|last \d+ answers?/i.test(observation)) return null;
   return { observation, question, generated: true };
 }
 
-export function parseClosing(text, lang) {
+// Closing must not hand a hurt back to the user (probe 2026-09-19: "Nothing I do seems to matter—work feels pointless").
+// Only heavy hopelessness words: a closing may name tiredness in a strength frame ("피곤함 속에서도 끝까지 지켜낸"),
+// but must not hand back "useless / empty / pointless". Light echoes are caught by the en 3-word check.
+const DISTRESS_EN = [/\buseless/i, /\bworthless/i, /\bpointless/i, /\bhopeless/i, /\bmeaningless/i, /\bempt(?:y|iness)\b/i, /\bnumb(?:ness)?\b/i, /\bmiser(?:able|y)\b/i, /\blonel(?:y|iness)\b/i, /\bdepress(?:ed|ion|ing)\b/i, /\bbroken\b/i, /\bfailure\b/i, /\bnothing\b[^.]{0,20}\bmatters?\b/i, /\bno point\b/i, /\bgive up\b|\bgiving up\b/i]; // + staging smoke: "naming the sense that nothing matters"
+const DISTRESS_KO = [/쓸모/, /의미\s*(?:가|도)?\s*없/, /무감각/, /텅\s*[빈비]/, /공허/, /우울/, /외로/, /절망/, /비참/, /무의미/, /가치\s*(?:가|도)?\s*없/];
+function words(t) { return String(t).toLowerCase().replace(/[^a-z' ]+/g, " ").split(/\s+/).filter(Boolean); }
+/** True when the closing repeats the answer: a shared 3-word run (en) or a shared distress word/stem. */
+export function echoesAnswer(closing, answer, lang) {
+  if (!answer) return false;
+  if (lang === "ko") return DISTRESS_KO.some((re) => re.test(closing) && re.test(answer));
+  const a = words(answer), c = words(closing);
+  const grams = new Set(a.slice(0, -2).map((_, i) => a.slice(i, i + 3).join(" ")));
+  if (c.slice(0, -2).some((_, i) => grams.has(c.slice(i, i + 3).join(" ")))) return true;
+  return DISTRESS_EN.some((re) => re.test(closing) && re.test(answer)); // stems: "empty" in the answer, "emptiness" in the closing
+}
+
+export function parseClosing(text, lang, answer = "") {
   if (!text) return null;
+  text = String(text).replace(/\s*[(（][^)）]*[)）]/g, "").trim(); // a chart citation copied from turn 1 does not belong in the closing
   const s = sentences(text);
   if (s.length < 1 || s.length > 2) return null;
   if (/[?？]/.test(text)) return null;
   if (lang === "ko" && LATIN_RUN.test(text)) return null;
   if (lang !== "ko" && HANGUL.test(text)) return null;
+  if (lang !== "ko" && /\b(they|their|them|the user)\b/i.test(text)) return null; // speak to the user, not about them (probe v2: "They named…")
+  if (echoesAnswer(text, answer, lang)) return null;
   return s.join(" ");
 }
 
@@ -185,30 +227,30 @@ export function systemPrompt(lang) {
       "너는 「사주 투데이」 앱의 「오늘의 성찰」 기능의 목소리입니다.",
       "규칙:",
       "① 모든 문장은 반드시 \"~요\" 또는 \"~습니다\"로 끝나는 존댓말입니다. 반말 금지.",
-      "② 예언·조언·처방·평가 금지. 성찰만. \"~하세요/~해 보세요\" 같은 권유도 금지.",
+      "② 예언·조언·처방·평가 금지. 성찰만. \"~하세요/~해 보세요/~면 좋겠어요/~하면 어떨까요/~될까요\" 같은 권유도 금지.",
       "③ 영어 단어 금지. 한자는 괄호 안에서만.",
-      "④ 데이터에 없는 사실(기간, 사건, 감정)을 지어내지 않습니다. 기간은 데이터의 일수를 그대로 씁니다.",
-      "⑤ 출력은 정확히 두 문장. 첫 문장 = 오늘의 명식 데이터와 지난 답변 사이의 일치 또는 긴장 하나를 짚고, 문장 끝 괄호 안에 사용한 데이터 이름을 적습니다. 둘째 문장 = 오늘 답할 질문 하나, 물음표로 끝.",
+      "④ 데이터에 없는 사실(기간, 사건, 감정)을 지어내지 않습니다. 기간은 데이터의 일수를 그대로 씁니다. 명식이 사용자의 기분을 만들거나 더 나쁘게 한다고 말하지 않습니다.",
+      "⑤ 출력은 정확히 두 문장. 첫 문장(70자 안팎) = 오늘의 명식 데이터와 지난 답변 사이의 일치 또는 긴장 하나를 누구나 아는 쉬운 말로 짚고, 문장 끝 괄호 안에 사용한 데이터 이름을 적습니다. 겁재·비견·식신·정재·신강·극약 같은 명리 용어는 본문에 쓰지 않고 괄호 안에만 둡니다. 둘째 문장(40자 이내) = 사용자가 오늘 겪었거나 느꼈거나 한 일을 묻는 짧고 쉬운 질문 하나, 물음표로 끝. 물음표는 둘째 문장에만 씁니다.",
+      "⑥ 지난 답변이 있으면 첫 문장은 반드시 그 답변의 내용을 짚고, 괄호에 \"지난 N일 답변\"을 적습니다. 지난 답변이 없으면 첫 문장은 오늘 명식의 결 하나만 짚습니다.",
       "예시: \"지난 사흘 피로가 이어졌는데, 오늘은 기운이 밖으로 나가는 날이라 그 둘이 부딪히는 것 같아요 (오늘 일진 갑오·식신, 지난 3일 답변). 오늘 남에게 보이지 않아도 되는 일 하나는 무엇인가요?\"",
-      "첫 성찰(지난 답변 없음)이면 첫 문장은 오늘 명식의 결 하나만 짚습니다.",
     ].join("\n")
     : [
       "You are the voice of the Daily Reflection feature inside the Saju Today app.",
       "Rules:",
-      "1. Reflection only — never prediction, advice, prescription or judgement. No 'you should'.",
-      "2. Never invent facts (durations, events, feelings) that are not in the data; use the data's day counts as given.",
-      "3. Output exactly two sentences. Sentence 1 = one agreement or tension between today's chart data and the user's recent answers, ending with the names of the data you used in parentheses. Sentence 2 = one question for today, ending with a question mark.",
-      "4. English only. Chinese characters for pillars (e.g. 乙未, 辛) are fine; never write Korean (Hangul) — use the English names given in the data.",
-      "Example: \"Three tired days in a row meet a day whose energy moves outward, and the two seem to pull against each other (today 甲午 · 식신, last 3 answers). What is one thing today that no one else needs to see?\"",
-      "If there are no previous answers, sentence 1 names one texture of today's chart only.",
-      "Plain words, no jargon beyond the data labels, no markdown.",
+      "1. Reflection only — never prediction, advice, prescription or judgement. No 'you should', 'try', 'what could help' or 'what might'.",
+      "2. Never invent facts (durations, events, feelings) that are not in the data; use the data's day counts as given. Never say the chart causes or deepens how the user feels.",
+      "3. Output exactly two sentences. Sentence 1 (under 35 words) = one agreement or tension between today's chart data and the user's recent answers, in plain everyday words, ending with the names of the data you used in parentheses. Sentence 2 (under 16 words) = one simple question about what the user noticed, did or felt today, ending with a question mark; do not assume the time of day. Only sentence 2 may contain a question mark.",
+      "4. English only. Copy data labels exactly as the data writes them — never translate a label into Chinese or Korean. Chinese characters may appear only where the data already has them (the pillars).",
+      "5. If there are previous answers, sentence 1 must speak to them and cite 'last N answers'. If there are none, sentence 1 names one texture of today's chart only.",
+      "Example: \"Three tired days in a row meet a day whose energy moves outward, and the two seem to pull against each other (today 甲午 · output, last 3 answers). What is one thing today that no one else needed to see?\"",
+      "No markdown.",
     ].join("\n");
 }
 
 export function closingPrompt(lang) {
   return lang === "ko"
-    ? "이제 사용자가 답했습니다. 한 문장으로만, 답의 핵심을 되비추는 말을 존댓말로 남깁니다. 질문·조언·평가·권유 금지, 영어 금지, 40자 이내."
-    : "The user has answered. Reply with one sentence only that mirrors the heart of the answer. No question, no advice, no judgement, under 25 words.";
+    ? "이제 사용자가 답했습니다. 한 문장으로만, 사용자가 오늘 해낸 것·알아차린 것·붙잡은 것을 존댓말로 짚어 줍니다. 답의 표현을 되풀이하지 않고 힘든 감정을 다시 말하지 않습니다 — 힘든 답이면 그것을 솔직히 적어 준 일 자체를 짚습니다. 명식·일진·오늘의 기운·괄호는 쓰지 않습니다. 질문·조언·평가·권유 금지, 영어 금지, 40자 이내."
+    : "The user has answered. Speak to them directly as 'you'. Reply with one sentence only that names what they did, noticed or held on to today. Do not start with 'You named'. Do not repeat the answer's words and never restate a hurt — if the answer is painful, acknowledge that they put it into words honestly. No chart terms, no parentheses, no question, no advice, no judgement, under 25 words.";
 }
 
 export function factsBlock(facts, lang) {
@@ -270,6 +312,7 @@ async function handleOpen(req, res) {
   const lensOut = buildLens(birth, { tz, date: today, lang });
   const facts = buildFacts({ lens: lensOut.lens, recent, lang, today });
   const provenance = facts.map((f) => ({ key: f.key, label: f.label }));
+  const ctx = { factsText: factsBlock(facts, lang), hasHistory: facts.some((f) => f.key === "history" && !/첫 성찰|first reflection/.test(f.label)) };
 
   let turn = null, usage = null, attempts = 0;
   if (nebiusConfigured()) {
@@ -279,14 +322,14 @@ async function handleOpen(req, res) {
         { role: "user", content: factsBlock(facts, lang) },
       ], { maxTokens: 300, temperature: 0.7 });
       usage = r.usage; attempts = r.attempts;
-      turn = parseTurn1(r.content, lang);
+      turn = parseTurn1(r.content, lang, ctx);
       if (!turn) { // one more try on a contract miss, then fall back
         const r2 = await chatNemotron([
           { role: "system", content: systemPrompt(lang) },
           { role: "user", content: factsBlock(facts, lang) },
         ], { maxTokens: 300, temperature: 0.4 });
         attempts += r2.attempts; usage = r2.usage;
-        turn = parseTurn1(r2.content, lang);
+        turn = parseTurn1(r2.content, lang, ctx);
       }
     } catch (e) {
       console.error("[saju-reflection] nebius failed:", String(e?.message || e).slice(0, 120));
@@ -327,21 +370,26 @@ async function handleAnswer(req, res) {
   const lang = existing.lang === "ko" ? "ko" : "en";
 
   const crisis = detectCrisis(text);
-  let closing = null, usage = null;
+  let closing = null, usage = null, closingAttempts = 0;
   if (!crisis && nebiusConfigured()) {
     try {
-      const r = await chatNemotron([
+      const msgs = [
         { role: "system", content: systemPrompt(lang) },
         { role: "user", content: (lang === "ko" ? "[오늘의 질문]\n" : "[Today's question]\n") + `${existing.observation} ${existing.question}` },
         { role: "assistant", content: `${existing.observation} ${existing.question}` },
         { role: "user", content: (lang === "ko" ? `[답변${mood ? ` · 기분 ${MOOD_KO[mood]}` : ""}]\n` : `[Answer${mood ? ` · mood ${MOOD_EN[mood]}` : ""}]\n`) + text + "\n\n" + closingPrompt(lang) },
-      ], { maxTokens: 120, temperature: 0.5 });
-      usage = r.usage;
-      closing = parseClosing(r.content, lang);
+      ];
+      for (const temperature of [0.5, 0.3]) { // one retry on a contract miss (echo, question, Latin/Hangul), then the fixed line
+        const r = await chatNemotron(msgs, { maxTokens: 120, temperature });
+        usage = r.usage; closingAttempts++;
+        closing = parseClosing(r.content, lang, text);
+        if (closing) break;
+      }
     } catch (e) {
       console.error("[saju-reflection] nebius closing failed:", String(e?.message || e).slice(0, 120));
     }
   }
+  const closingSource = crisis ? "none" : closing ? "generated" : "fallback";
   if (!crisis && !closing) closing = FALLBACK_CLOSING[lang];
 
   const recent = await loadUserRecent(db, user.uid);
@@ -350,7 +398,7 @@ async function handleAnswer(req, res) {
 
   await ref.set({ text, mood, closing, crisis, answeredAt: new Date() }, { merge: true });
   await db.collection("users").doc(user.uid).set({ saju_reflectionRecent: nextRecent, saju_reflectionLastDate: today }, { merge: true });
-  console.log(`[saju-reflection] uid=${hash8(user.uid)} turn=2 crisis=${crisis} tokens=${usage?.total_tokens ?? "-"}`);
+  console.log(`[saju-reflection] uid=${hash8(user.uid)} turn=2 crisis=${crisis} closing=${closingSource} attempts=${closingAttempts} tokens=${usage?.total_tokens ?? "-"}`);
 
   return json(res, 200, { saved: true, date: today, streak, closing, ...(crisis ? { crisis_referral: referralFor(lang) } : {}) });
 }

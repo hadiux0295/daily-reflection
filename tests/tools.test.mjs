@@ -34,6 +34,9 @@ test("crisis detection: hit vs near-miss", () => {
   assert.ok(detectCrisis("thoughts of self-harm again"));
   assert.ok(!detectCrisis("This deadline is killing me, but I'll live."));
   assert.ok(!detectCrisis("I died laughing at the meeting."));
+  // 2026-09-19 sync with Saju Today: past tense, intent phrasing, idioms that are not crisis
+  for (const yes of ["I overdosed last night", "I just want to jump off", "I can't go on with life", "honestly I dont want to be alive anymore"]) assert.ok(detectCrisis(yes), yes);
+  for (const no of ["I jumped off the bus early and walked", "I can't go on working this late"]) assert.ok(!detectCrisis(no), no);
 });
 
 test("streak: today / yesterday / gap", () => {
