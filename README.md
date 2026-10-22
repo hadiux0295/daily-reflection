@@ -43,7 +43,7 @@ Built for the [Build, Ship, Shape — Amazon Developer Hackathon](https://amazon
   (findahelpline.com) is spoken first and the questions stop. The model, voice and transcription vendors are named on
   the page; reflection only — not prediction, and not medical, psychological, legal or financial advice.
 
-**Demo video (< 3 min):** https://youtu.be/VkXBB6exXDM — a live voice session on the deployed server (the user's lines are synthetic
+**Demo video (< 3 min):** https://youtu.be/mBnjk3RvHgg — a live voice session on the deployed server (the user's lines are synthetic
 speech played into the microphone input; wait times are shortened).
 
 <p>
@@ -93,7 +93,7 @@ submission period (after 2026-08-26), all in this repo:
 Framing stays the same everywhere: reflection, not prediction; AI-generated, model named on screen; not medical,
 psychological, legal or financial advice.
 
-## Status (2026-10-22 — server + 4 tools + MCP App view + voice simulation, 24 tests, live on Cloud Run)
+## Status (2026-10-22 — server + 4 tools + MCP App view + voice simulation, 26 tests, live on Cloud Run)
 
 | Tool | State |
 |---|---|
@@ -130,7 +130,7 @@ wired to `DELETE /profiles/:id`.
 ```bash
 npm install               # Node ≥ 22.13 (uses the built-in node:sqlite)
 npm start                 # Streamable HTTP MCP endpoint on :3939/mcp, health on /health
-npm test                  # 24 tests: unit + real HTTP round-trips with the MCP client (incl. the sim agent with a scripted model, the MCP App resource and the speech module with a stubbed API), no LLM needed
+npm test                  # 26 tests: unit + real HTTP round-trips with the MCP client (incl. the sim agent with a scripted model, the MCP App resource and the speech module with a stubbed API), no LLM needed
 ```
 
 Endpoints: `POST|GET|DELETE /mcp` (MCP, stateless — one transport per request) ·
