@@ -2,9 +2,11 @@
 // Alexa+ experience built with any AI tool, as long as the source is in the repo).
 //
 // It is a genuine MCP host: each turn it connects to this server's own /mcp endpoint over Streamable HTTP
-// with the SDK client, lists the tools, hands them to an OpenAI-compatible chat model (OpenRouter free tier
+// with the SDK client (advertising the MCP Apps extension), lists the tools, hands them to an OpenAI-compatible chat model (OpenRouter free tier
 // by default) as function tools, executes the model's tool calls through MCP, and returns the spoken reply
-// plus a trace of every MCP call so the UI can show what happened. No journal logic lives here.
+// plus a trace of every MCP call so the UI can show what happened. When a called tool links a `ui://` view
+// (MCP Apps), the view HTML is read over MCP and returned too; the browser renders it in a sandboxed iframe and
+// speaks the MCP Apps postMessage protocol with it. No journal logic lives here.
 //
 // `fetchImpl` (model API) and `connectMcp` (MCP client factory) are injectable for tests.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -15,6 +17,8 @@ export const DEFAULT_SIM_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 export const DEFAULT_SIM_API_BASE = "https://openrouter.ai/api/v1";
 const MAX_ROUNDS = 6;
 const MAX_HISTORY = 30;
+// …or it prints the tool arguments as text ({ "profile_id": … }) — both mean a call was intended but not made.
+const NARRATED_CALL = /\b(?:get_reflection_prompt|save_journal_entry|get_reflection_history|get_daily_lens)\b|\b(?:calling|i'?ll call|let me call)\s+(?:the\s+)?(?:tool|get_|save_)|"(?:profile_id|tz|mood|text)"\s*:/i;
 
 /** Model API key: `SIM_API_KEY` (any OpenAI-compatible base, e.g. Nebius Token Factory) or the older `OPENROUTER_API_KEY`. */
 export function simApiKey(env = process.env) { return env.SIM_API_KEY || env.OPENROUTER_API_KEY || ""; }
@@ -25,7 +29,8 @@ export function simModel(env = process.env) { return env.SIM_MODEL || DEFAULT_SI
 
 /** Default MCP client factory: real Streamable HTTP round-trip to `mcpUrl`, forwarding the access token. */
 export async function connectMcpClient(mcpUrl, token) {
-  const client = new Client({ name: "daily-reflection-web-sim", version: "0.1.0" });
+  // Advertise the MCP Apps extension: this host renders `text/html;profile=mcp-app` views (in the browser, sandboxed).
+  const client = new Client({ name: "daily-reflection-web-sim", version: "0.2.0" }, { capabilities: { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } } });
   const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), token ? { requestInit: { headers: { "X-DR-Token": token } } } : undefined);
   await client.connect(transport);
   return client;
@@ -132,6 +137,17 @@ export function makeSimAgent({ env = process.env, fetchImpl = globalThis.fetch, 
       const instructions = typeof client.getInstructions === "function" ? client.getInstructions() : "";
       const { tools: mcpTools } = await client.listTools();
       const tools = toOpenAiTools(mcpTools);
+      // MCP Apps: tool name → ui:// resource it renders into (read once per turn, sent to the browser with the trace).
+      const uiOf = Object.fromEntries(mcpTools.filter((t) => t._meta && t._meta.ui && t._meta.ui.resourceUri).map((t) => [t.name, t._meta.ui.resourceUri]));
+      const ui_resources = {};
+      const readUi = async (uri) => {
+        if (uri in ui_resources) return;
+        try {
+          const r = await client.readResource({ uri });
+          const c = (r.contents || []).find((x) => typeof x.text === "string");
+          ui_resources[uri] = c ? { mimeType: c.mimeType, html: c.text } : null;
+        } catch { ui_resources[uri] = null; }
+      };
       const today = todayIn(tz);
       const convo = [{ role: "system", content: systemPrompt({ instructions, profile_id, tz, model, today }) }, ...sanitizeHistory(messages)];
       let crisis_referral;
@@ -141,14 +157,22 @@ export function makeSimAgent({ env = process.env, fetchImpl = globalThis.fetch, 
         crisis_referral = CRISIS_REFERRAL;
         convo.push({ role: "system", content: "The user's last message matched crisis wording. Say this line word for word first, then respond with care and stop the reflection questions. Do not quote phone numbers or hotlines of your own; the line above is the only referral: " + CRISIS_REFERRAL });
       }
+      let nudged = false;
       for (let round = 0; round < MAX_ROUNDS; round++) {
         let msg;
         try { msg = await callModelRetry(convo, tools); }
         catch (e) { return { error: "model_failed", message: "The host model did not answer (" + e.message.slice(0, 160) + "). Please try again.", trace, model, ms: Date.now() - t0 }; }
         const calls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
+        // Measured 2026-09-19 and 2026-10-22 (Nemotron 3 Super, ~1 in 4 first turns): the model *says* it is calling a
+        // tool ("Calling get_reflection_prompt.") instead of emitting tool_calls. Nudge once, then accept the answer.
+        if (!calls.length && !nudged && NARRATED_CALL.test(msg.content || "")) {
+          nudged = true;
+          convo.push({ role: "assistant", content: msg.content }, { role: "system", content: "You described a tool call instead of making it. Make the tool call now. Never mention tool names to the user." });
+          continue;
+        }
         if (!calls.length) {
           const reply = stripThinking(msg.content) || "Sorry, I lost my train of thought. Shall we try again?";
-          return { reply, trace, model, ms: Date.now() - t0, ...(crisis_referral ? { crisis_referral } : {}) };
+          return { reply, trace, model, ms: Date.now() - t0, ui_resources, ...(crisis_referral ? { crisis_referral } : {}) };
         }
         convo.push({ role: "assistant", content: msg.content || null, tool_calls: calls });
         for (const call of calls) {
@@ -165,11 +189,13 @@ export function makeSimAgent({ env = process.env, fetchImpl = globalThis.fetch, 
             result = { error: "tool_call_failed", message: String(e && e.message || e) };
           }
           if (result && result.crisis_referral) crisis_referral = result.crisis_referral;
-          trace.push({ tool: name, args, result, ms: Date.now() - tc0 });
+          const ui = !result.error && uiOf[name];
+          if (ui) await readUi(ui);
+          trace.push({ tool: name, args, result, ms: Date.now() - tc0, ...(ui ? { ui } : {}) });
           convo.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
         }
       }
-      return { reply: "I ran out of steps for this turn. Could you say that again?", trace, model, ms: Date.now() - t0, ...(crisis_referral ? { crisis_referral } : {}) };
+      return { reply: "I ran out of steps for this turn. Could you say that again?", trace, model, ms: Date.now() - t0, ui_resources, ...(crisis_referral ? { crisis_referral } : {}) };
     } finally {
       try { await client.close(); } catch { /* ignore */ }
     }

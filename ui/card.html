@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daily Reflection card</title>
+<!--
+  MCP App view (MCP Apps extension, spec 2026-01-26): served as ui://daily-reflection/card.html with
+  mimeType "text/html;profile=mcp-app". One view for three tools — it reads the CallToolResult the host
+  sends in ui/notifications/tool-result and picks the layout from the result's shape:
+    get_reflection_prompt  → today's theme + the three questions (+ the facts it was built from)
+    save_journal_entry     → streak + this week's strip (or the helpline line when crisis wording was found)
+    get_reflection_history → this week's strip, mood trend, recent entries, and a "start today" button (ui/message)
+  Self-contained on purpose: no network, no fonts, no scripts from elsewhere (the default MCP Apps CSP is
+  default-src 'none'). Sizes are in container units so the card reads at a distance on a 10" or a 15" display.
+-->
+<style>
+  :root {
+    --ink:#0e1014; --ink2:#161922; --line:rgba(255,255,255,.08); --text:#f3efe7; --muted:#a49d90; --dim:#6f6a61;
+    --gold:#e8b86a; --gold2:#f6d9a2; --sage:#8fc6a8; --rose:#e48f86; --sky:#8fb3e6;
+    --serif: "Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --sans: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  [data-theme="light"] { --ink:#f7f3ec; --ink2:#efe9df; --line:rgba(0,0,0,.08); --text:#22201c; --muted:#6c655a; --dim:#9a9285; --gold:#b9822c; --gold2:#8a5d17; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body { background:var(--ink); color:var(--text); font-family:var(--sans); overflow:hidden; -webkit-font-smoothing:antialiased; }
+  .stage { position:relative; height:100vh; width:100vw; container-type:size; overflow:hidden;
+           background: radial-gradient(120% 90% at 85% -10%, rgba(232,184,106,.16), transparent 55%),
+                       radial-gradient(90% 80% at -10% 110%, rgba(143,198,168,.10), transparent 60%), var(--ink); }
+  /* top 13cqh: the device status bar; bottom 26cqh: the spoken-caption band the host overlays */
+  .pad { position:absolute; inset:0; padding:13cqh 6cqw 26cqh; display:flex; flex-direction:column; }
+  .eyebrow { font-size:max(11px,2.3cqh); letter-spacing:.18em; text-transform:uppercase; color:var(--muted); display:flex; gap:1.2em; align-items:center; }
+  .eyebrow .dot { width:.55em; height:.55em; border-radius:50%; background:var(--gold); box-shadow:0 0 1.2em var(--gold); }
+  .fade { animation:in .7s cubic-bezier(.2,.7,.2,1) both; }
+  .fade.d1 { animation-delay:.08s } .fade.d2 { animation-delay:.16s } .fade.d3 { animation-delay:.24s } .fade.d4 { animation-delay:.32s }
+  @keyframes in { from { opacity:0; transform:translateY(1.6cqh); } to { opacity:1; transform:none; } }
+
+  /* prompt */
+  .theme { font-family:var(--serif); font-weight:400; font-size:min(10cqh,7cqw); line-height:1.02; margin:2.2cqh 0 1.2cqh; letter-spacing:-.01em; }
+  .theme em { font-style:italic; color:var(--gold2); }
+  .focus { font-size:max(12px,2.9cqh); color:var(--muted); max-width:70cqw; line-height:1.45; }
+  .qs { list-style:none; margin-top:auto; display:grid; gap:1.6cqh; }
+  .qs li { display:grid; grid-template-columns:5.2cqh 1fr; gap:2cqw; align-items:baseline; font-size:max(13px,3.5cqh); line-height:1.32; color:var(--text); }
+  .qs li .n { font-family:var(--serif); font-style:italic; color:var(--gold); font-size:1.15em; }
+  .qs li.later { color:var(--dim); }
+  .chips { display:flex; flex-wrap:wrap; gap:1cqh 1cqw; margin-top:2.6cqh; }
+  .chip { font-size:max(10px,2.1cqh); color:var(--muted); border:1px solid var(--line); background:rgba(255,255,255,.03); border-radius:999px; padding:.45em 1em; }
+  .chip b { color:var(--text); font-weight:500; }
+  .note { font-size:max(9px,1.8cqh); color:var(--dim); margin-top:1.6cqh; }
+
+  /* saved */
+  .saved { display:grid; grid-template-columns:auto 1fr; gap:5cqw; align-items:center; margin:auto 0; }
+  .ring { position:relative; width:min(46cqh,34cqw); aspect-ratio:1; }
+  .ring svg { width:100%; height:100%; transform:rotate(-90deg); }
+  .ring .big { position:absolute; inset:0; display:grid; place-items:center; text-align:center; }
+  .ring .num { font-family:var(--serif); font-size:min(19cqh,14cqw); line-height:.9; color:var(--gold2); }
+  .ring .lbl { font-size:max(11px,2.4cqh); letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin-top:.6em; }
+  .headline { font-family:var(--serif); font-size:min(7.4cqh,5cqw); line-height:1.12; }
+  .sub { color:var(--muted); font-size:max(12px,2.9cqh); margin-top:1.6cqh; line-height:1.5; }
+
+  /* week strip */
+  .week { display:grid; grid-template-columns:repeat(7,1fr); gap:1.4cqw; margin-top:4cqh; max-width:62cqw; }
+  .day { display:flex; flex-direction:column; align-items:center; gap:1.2cqh; }
+  .day .w { font-size:max(10px,2.1cqh); color:var(--dim); letter-spacing:.08em; text-transform:uppercase; }
+  .day .c { width:min(6.4cqh,5cqw); aspect-ratio:1; border-radius:50%; border:1.5px dashed var(--line); }
+  .day.done .c { border:none; background:var(--gold); box-shadow:0 0 2.4cqh rgba(232,184,106,.35); }
+  .day.done.low .c { background:var(--sky); box-shadow:0 0 2.4cqh rgba(143,179,230,.35); }
+  .day.done.high .c { background:var(--sage); box-shadow:0 0 2.4cqh rgba(143,198,168,.35); }
+  .day.today .w { color:var(--gold2); }
+  .legend { display:flex; gap:2.4cqw; margin-top:2.4cqh; font-size:max(10px,2cqh); color:var(--dim); }
+  .legend i { display:inline-block; width:.8em; height:.8em; border-radius:50%; margin-right:.5em; vertical-align:-.05em; }
+
+  /* history */
+  .hist { display:grid; grid-template-columns:1.1fr 1fr; gap:5cqw; margin-top:3cqh; flex:1; min-height:0; }
+  .trend { font-family:var(--serif); font-size:min(6.6cqh,4.6cqw); line-height:1.15; margin-top:1cqh; }
+  .entries { display:flex; flex-direction:column; gap:2cqh; overflow:hidden; }
+  .entry { border-left:2px solid var(--line); padding-left:1.6cqw; }
+  .entry .d { font-size:max(10px,2cqh); color:var(--dim); letter-spacing:.1em; text-transform:uppercase; }
+  .entry .t { font-size:max(12px,2.7cqh); line-height:1.45; color:var(--text); margin-top:.4em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  button.go { margin-top:auto; align-self:flex-start; font:inherit; font-size:max(12px,2.8cqh); color:var(--ink); background:var(--gold); border:none; border-radius:999px; padding:.8em 1.6em; cursor:pointer; }
+  button.go:hover { background:var(--gold2); }
+
+  /* crisis */
+  .crisis { margin:auto 0; max-width:78cqw; }
+  .crisis .headline { color:var(--text); }
+  .crisis .line { margin-top:3cqh; font-size:max(13px,3.4cqh); line-height:1.5; padding:2.4cqh 2.4cqw; border:1px solid rgba(228,143,134,.55); background:rgba(228,143,134,.08); border-radius:1.6cqh; }
+
+  .waiting { margin:auto; color:var(--dim); font-size:max(12px,2.8cqh); letter-spacing:.06em; }
+</style>
+</head>
+<body>
+<div class="stage"><div class="pad" id="root"><div class="waiting">Waiting for the assistant…</div></div></div>
+<script>
+(() => {
+  const root = document.getElementById("root");
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const longDate = (iso) => { try { return new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }); } catch { return iso; } };
+
+  // ---- MCP Apps bridge (JSON-RPC 2.0 over postMessage to the host window) ----
+  let nextId = 0; const pending = new Map();
+  const send = (msg) => window.parent.postMessage({ jsonrpc: "2.0", ...msg }, "*");
+  const request = (method, params) => new Promise((resolve, reject) => { const id = ++nextId; pending.set(id, { resolve, reject }); send({ id, method, params }); });
+  const notify = (method, params) => send({ method, params });
+  let toolName = null;
+
+  window.addEventListener("message", (e) => {
+    if (e.source !== window.parent) return;
+    const m = e.data; if (!m || m.jsonrpc !== "2.0") return;
+    if (m.id != null && !m.method && pending.has(m.id)) { const p = pending.get(m.id); pending.delete(m.id); m.error ? p.reject(m.error) : p.resolve(m.result); return; }
+    switch (m.method) {
+      case "ui/notifications/tool-input": break; // arguments are not needed: the result carries everything shown
+      case "ui/notifications/tool-result": render(m.params); break;
+      case "ui/notifications/host-context-changed": applyContext(m.params); break;
+      case "ui/resource-teardown": send({ id: m.id, result: {} }); break;
+      default: if (m.id != null && m.method) send({ id: m.id, error: { code: -32601, message: "method not found" } });
+    }
+  });
+
+  function applyContext(ctx) {
+    if (!ctx) return;
+    if (ctx.theme) document.documentElement.dataset.theme = ctx.theme;
+    const t = ctx.toolInfo && ctx.toolInfo.tool && ctx.toolInfo.tool.name; if (t) toolName = t;
+  }
+
+  // ---- layouts ----
+  function weekHtml(week) {
+    if (!Array.isArray(week) || !week.length) return "";
+    const last = week.length - 1;
+    return `<div class="week fade d3">${week.map((d, i) => `<div class="day ${d.done ? "done" : ""} ${d.mood || ""} ${i === last ? "today" : ""}"><div class="c"></div><div class="w">${i === last ? "Today" : esc(d.weekday)}</div></div>`).join("")}</div>
+      <div class="legend fade d4"><span><i style="background:var(--sky)"></i>low</span><span><i style="background:var(--gold)"></i>steady</span><span><i style="background:var(--sage)"></i>bright</span></div>`;
+  }
+
+  function promptCard(r) {
+    const chips = (r.provenance || []).map((p) => `<span class="chip">${esc(p.label)}</span>`).join("");
+    return `<div class="eyebrow fade"><span class="dot"></span>Today's reflection · ${esc(longDate(r.date))}</div>
+      <h1 class="theme fade d1">Theme: <em>${esc(r.theme)}</em></h1>
+      ${r.lens_focus ? `<p class="focus fade d2">${esc(r.lens_focus)}</p>` : `<p class="focus fade d2">Three questions, one at a time. Answer out loud — about two minutes.</p>`}
+      <ol class="qs">${(r.questions || []).map((q, i) => `<li class="fade d${i + 2} "><span class="n">${i + 1}</span><span>${esc(q)}</span></li>`).join("")}</ol>
+      ${chips ? `<div class="chips fade d4" title="What this prompt was built from">${chips}</div>` : ""}
+      <p class="note fade d4">AI-voiced · for reflection only — not a prediction, and not medical, psychological, legal, or financial advice.</p>`;
+  }
+
+  function savedCard(r) {
+    if (r.crisis_referral) {
+      return `<div class="crisis"><div class="eyebrow fade"><span class="dot" style="background:var(--rose);box-shadow:0 0 1.2em var(--rose)"></span>Saved · please read this first</div>
+        <p class="headline fade d1" style="margin-top:2cqh">You don't have to carry this alone.</p>
+        <p class="line fade d2">${esc(r.crisis_referral)}</p></div>`;
+    }
+    const s = Number(r.streak) || 0, frac = Math.min(s, 7) / 7, C = 2 * Math.PI * 44;
+    return `<div class="eyebrow fade"><span class="dot"></span>Saved to your journal</div>
+      <div class="saved">
+        <div class="ring fade d1"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="5"/>
+          <circle cx="50" cy="50" r="44" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${(C * frac).toFixed(1)} ${C.toFixed(1)}"/></svg>
+          <div class="big"><div><div class="num">${s}</div><div class="lbl">day${s === 1 ? "" : "s"} in a row</div></div></div></div>
+        <div><p class="headline fade d2">${s > 1 ? "That's " + s + " evenings in a row." : "Your first evening is in."}</p>
+          <p class="sub fade d3">${Number(r.entry_count) || 1} reflection${Number(r.entry_count) === 1 ? "" : "s"} kept so far. Same time tomorrow?</p>
+          ${weekHtml(r.week)}</div>
+      </div>`;
+  }
+
+  function historyCard(r) {
+    const trend = { up: "Your mood has been lifting this week.", down: "This week has been heavier than the last few days.", flat: "Your mood has held steady this week.", "n/a": "Not enough check-ins yet to read a trend." }[r.mood_trend] || "";
+    const entries = (r.entries || []).slice(0, 3).map((e, i) => `<div class="entry fade d${i + 2}"><div class="d">${esc(longDate(e.date))}${e.mood ? " · " + esc(e.mood) : ""}</div><div class="t">${esc(e.text_preview)}</div></div>`).join("");
+    const doneToday = Array.isArray(r.week) && r.week.length && r.week[r.week.length - 1].done;
+    return `<div class="eyebrow fade"><span class="dot"></span>Your week · ${Number(r.streak) || 0}-day streak</div>
+      <div class="hist">
+        <div style="display:flex;flex-direction:column;min-height:0"><p class="trend fade d1">${esc(trend)}</p>${weekHtml(r.week)}
+          ${doneToday ? "" : `<button class="go fade d4" id="go">Start today's reflection</button>`}</div>
+        <div class="entries">${entries || `<div class="sub">No entries in this window yet.</div>`}</div>
+      </div>`;
+  }
+
+  function render(result) {
+    const r = (result && result.structuredContent) || {};
+    const kind = toolName || (Array.isArray(r.questions) ? "get_reflection_prompt" : "entries" in r ? "get_reflection_history" : "streak" in r ? "save_journal_entry" : "");
+    if (r.error) { root.innerHTML = `<div class="waiting">${esc(r.message || r.error)}</div>`; return; }
+    root.innerHTML = kind === "get_reflection_prompt" ? promptCard(r) : kind === "save_journal_entry" ? savedCard(r) : kind === "get_reflection_history" ? historyCard(r) : `<div class="waiting">Nothing to show for this result.</div>`;
+    const go = document.getElementById("go");
+    if (go) go.onclick = () => request("ui/message", { role: "user", content: { type: "text", text: "Let's do today's reflection." } }).catch(() => {});
+    reportSize();
+  }
+
+  const reportSize = () => notify("ui/notifications/size-changed", { width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight });
+  if ("ResizeObserver" in window) new ResizeObserver(reportSize).observe(document.documentElement);
+
+  request("ui/initialize", { protocolVersion: "2026-01-26", appInfo: { name: "daily-reflection-card", version: "0.2.0" }, appCapabilities: {} })
+    .then((res) => { applyContext(res && res.hostContext); notify("ui/notifications/initialized", {}); })
+    .catch(() => notify("ui/notifications/initialized", {}));
+})();
+</script>
+</body>
+</html>

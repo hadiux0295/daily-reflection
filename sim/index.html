@@ -6,190 +6,388 @@
 <link rel="icon" href="data:,">
 <title>Daily Reflection — Alexa+ simulation</title>
 <style>
-  :root { --bg:#0b0d14; --panel:#131625; --line:#232842; --text:#e8e9f1; --muted:#8b90ad; --accent:#4fd1c5; --accent2:#7c8cff; --warn:#ffb86b; --danger:#ff6b81; }
+  :root {
+    --bg:#08090c; --panel:#111319; --panel2:#0c0e13; --line:#1f232d; --text:#ece8df; --muted:#8f8a80; --dim:#5f5b54;
+    --gold:#e8b86a; --gold2:#f6d9a2; --sage:#8fc6a8; --sky:#8fb3e6; --rose:#e48f86;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-  a { color:var(--accent); }
-  header { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); }
-  header h1 { font-size:17px; margin:0; font-weight:600; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 var(--sans); -webkit-font-smoothing:antialiased; }
+  a { color:var(--gold); }
+  header { display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; padding:16px 24px; border-bottom:1px solid var(--line); }
+  header h1 { font:400 22px/1.2 var(--serif); margin:0; letter-spacing:-.005em; }
+  header h1 span { color:var(--muted); font:13px var(--sans); margin-left:8px; letter-spacing:.08em; text-transform:uppercase; }
   header .sub { color:var(--muted); font-size:13px; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin-left:auto; }
-  .chip { font-size:12px; padding:3px 9px; border:1px solid var(--line); border-radius:999px; color:var(--muted); background:var(--panel); }
-  .chip.on { color:var(--accent); border-color:var(--accent); }
-  .chip.off { color:var(--warn); border-color:var(--warn); }
-  main { display:grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap:16px; padding:16px 20px; max-width:1200px; margin:0 auto; }
-  @media (max-width: 860px) { main { grid-template-columns:1fr; } }
-  section { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; min-width:0; }
-  section h2 { font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 12px; font-weight:600; }
-  .voice { display:flex; flex-direction:column; align-items:center; gap:10px; padding:10px 0 16px; }
-  .orb { width:96px; height:96px; border-radius:50%; border:none; cursor:pointer; background:radial-gradient(circle at 35% 35%, #7fe6dc, var(--accent) 55%, #1f6f68); box-shadow:0 0 0 0 rgba(79,209,197,.35); transition:box-shadow .3s, transform .2s; color:#062a27; font-size:34px; }
-  .orb:hover { transform:scale(1.04); }
-  .orb.listening { animation:pulse 1.2s infinite; }
-  .orb.speaking { background:radial-gradient(circle at 35% 35%, #b3bcff, var(--accent2) 55%, #2b3499); animation:pulse 1.6s infinite; }
-  .orb.thinking { background:radial-gradient(circle at 35% 35%, #ffd9a8, var(--warn) 55%, #8a5a1f); animation:pulse .9s infinite; }
-  .orb:disabled { opacity:.5; cursor:not-allowed; animation:none; }
-  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(124,140,255,.45)} 70%{box-shadow:0 0 0 26px rgba(124,140,255,0)} 100%{box-shadow:0 0 0 0 rgba(124,140,255,0)} }
-  .state { color:var(--muted); font-size:13px; min-height:20px; }
-  .quick { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
-  button.sm { background:transparent; color:var(--text); border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13px; cursor:pointer; }
-  button.sm:hover { border-color:var(--accent); }
-  button.sm.danger { color:var(--danger); }
-  button.sm.danger:hover { border-color:var(--danger); }
-  .log { display:flex; flex-direction:column; gap:10px; max-height:46vh; overflow:auto; padding:4px 2px; }
-  .msg { max-width:88%; padding:10px 14px; border-radius:14px; white-space:pre-wrap; word-wrap:break-word; }
-  .msg.user { align-self:flex-end; background:#1e2440; border-bottom-right-radius:4px; }
-  .msg.assistant { align-self:flex-start; background:#0f2a2b; border:1px solid #1c4d4a; border-bottom-left-radius:4px; }
-  .msg.system { align-self:center; color:var(--muted); font-size:13px; background:transparent; }
-  .msg.crisis { align-self:stretch; max-width:100%; background:#3a1220; border:1px solid var(--danger); }
-  .compose { display:flex; gap:8px; margin-top:12px; }
-  .compose input { flex:1; background:#0e1120; border:1px solid var(--line); color:var(--text); border-radius:10px; padding:10px 12px; font-size:15px; }
-  .compose button { background:var(--accent); color:#062a27; border:none; border-radius:10px; padding:10px 16px; font-weight:600; cursor:pointer; }
+  .chip { font-size:12px; padding:3px 10px; border:1px solid var(--line); border-radius:999px; color:var(--muted); background:var(--panel); }
+  .chip.on { color:var(--sage); border-color:rgba(143,198,168,.45); }
+  .chip.off { color:var(--rose); border-color:rgba(228,143,134,.45); }
+  main { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(320px,1fr); gap:22px; padding:22px 24px; max-width:1480px; margin:0 auto; }
+  @media (max-width: 980px) { main { grid-template-columns:1fr; } }
+
+  /* the simulated screen-equipped device */
+  .device { position:relative; border-radius:28px; padding:14px; background:linear-gradient(160deg,#23262e,#14161b 60%); box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06); }
+  /* text on the screen scales with the screen (container units), like a real display of any size */
+  .screen { position:relative; aspect-ratio:16/10; border-radius:16px; overflow:hidden; background:#0e1014; isolation:isolate; container-type:size; }
+  .topbar { position:absolute; top:0; left:0; right:0; z-index:3; display:flex; justify-content:space-between; align-items:center; padding:2.2% 3.2%; font-size:clamp(11px,2.7cqh,30px); color:rgba(236,232,223,.7); pointer-events:none; }
+  .topbar .sim { border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:2px 10px; font-size:.82em; letter-spacing:.06em; }
+  .viewport { position:absolute; inset:0; z-index:1; }
+  .viewport iframe { position:absolute; inset:0; width:100%; height:100%; border:0; background:transparent; opacity:0; transition:opacity .45s ease; }
+  .viewport iframe.show { opacity:1; }
+  .idle { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:0 7%; transition:opacity .4s;
+          background:radial-gradient(110% 90% at 85% -10%, rgba(232,184,106,.14), transparent 55%), radial-gradient(90% 80% at -10% 110%, rgba(143,198,168,.08), transparent 60%), #0e1014; }
+  .idle.gone { opacity:0; pointer-events:none; }
+  .idle .clock { font:300 clamp(48px,22cqh,260px)/1 var(--serif); letter-spacing:-.02em; }
+  .idle .date { color:var(--muted); font-size:clamp(13px,3.6cqh,40px); margin-top:1.8cqh; }
+  .idle .hint { margin-top:7%; font-size:clamp(14px,4.3cqh,46px); color:rgba(236,232,223,.82); }
+  .idle .hint em { font-family:var(--serif); color:var(--gold2); }
+  .caption { position:absolute; left:0; right:0; bottom:0; z-index:3; padding:5% 6% 3.6%; pointer-events:none;
+             background:linear-gradient(to top, rgba(8,9,12,.92) 30%, rgba(8,9,12,.55) 70%, transparent); opacity:0; transform:translateY(8px); transition:opacity .35s, transform .35s; }
+  .caption.show { opacity:1; transform:none; }
+  .caption .you { font-size:clamp(11px,2.8cqh,30px); color:var(--muted); margin-bottom:.5em; }
+  .caption .say { font-size:clamp(13px,3.7cqh,40px); line-height:1.42; color:var(--text); max-width:92%; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .lightbar { position:absolute; left:0; right:0; bottom:0; height:max(4px,0.9cqh); z-index:4; opacity:0; transition:opacity .3s; background:linear-gradient(90deg, transparent, var(--gold), transparent); background-size:50% 100%; background-repeat:no-repeat; }
+  .lightbar.listening { opacity:1; background:linear-gradient(90deg, var(--sage), var(--gold2), var(--sage)); animation:breathe 1.4s ease-in-out infinite; }
+  .lightbar.thinking { opacity:1; animation:sweep 1.1s linear infinite; }
+  .lightbar.speaking { opacity:1; background:linear-gradient(90deg, rgba(232,184,106,.2), var(--gold), rgba(232,184,106,.2)); animation:breathe 2s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { opacity:.55 } 50% { opacity:1 } }
+  @keyframes sweep { from { background-position:-50% 0 } to { background-position:150% 0 } }
+
+  .controls { display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; margin-top:18px; }
+  .mic { width:64px; height:64px; border-radius:50%; border:1px solid rgba(232,184,106,.5); background:radial-gradient(circle at 35% 30%, #3a3020, #1a1712); color:var(--gold2); cursor:pointer; display:grid; place-items:center; transition:transform .15s, box-shadow .3s; flex:none; }
+  .mic svg { width:26px; height:26px; }
+  .mic:hover { transform:scale(1.04); }
+  .mic.rec { border-color:var(--sage); color:var(--sage); box-shadow:0 0 0 8px rgba(143,198,168,.12), 0 0 30px rgba(143,198,168,.35); }
+  .mic:disabled { opacity:.45; cursor:not-allowed; }
+  .state { color:var(--muted); font-size:13px; min-width:180px; flex:1; }
+  .quick { display:flex; flex-wrap:wrap; gap:8px; }
+  button.sm { background:transparent; color:var(--text); border:1px solid var(--line); border-radius:999px; padding:7px 14px; font-size:13px; cursor:pointer; }
+  button.sm:hover { border-color:var(--gold); }
+  button.sm.danger { color:var(--rose); }
+  button.sm.danger:hover { border-color:var(--rose); }
+  .compose { display:flex; gap:8px; margin-top:14px; }
+  .compose input { flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:12px; padding:11px 14px; font-size:15px; }
+  .compose button { background:var(--gold); color:#1a1408; border:none; border-radius:12px; padding:10px 18px; font-weight:600; cursor:pointer; }
   .compose button:disabled { opacity:.5; cursor:not-allowed; }
-  .trace { display:flex; flex-direction:column; gap:8px; max-height:52vh; overflow:auto; }
-  details { border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:#0e1120; }
-  summary { cursor:pointer; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; }
-  summary .ms { color:var(--muted); float:right; }
-  pre { margin:8px 0 0; font-size:12px; white-space:pre-wrap; word-break:break-word; color:#c9cde6; max-height:260px; overflow:auto; }
+  .toggles { display:flex; flex-wrap:wrap; gap:14px; margin-top:10px; font-size:13px; color:var(--muted); }
+  .toggles label { display:flex; gap:6px; align-items:center; cursor:pointer; }
+
+  aside { display:flex; flex-direction:column; gap:16px; min-width:0; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; min-width:0; }
+  section h2 { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 12px; font-weight:600; }
+  .log { display:flex; flex-direction:column; gap:8px; max-height:30vh; overflow:auto; }
+  .msg { max-width:92%; padding:8px 12px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; font-size:14px; }
+  .msg.user { align-self:flex-end; background:#1b1f29; }
+  .msg.assistant { align-self:flex-start; background:#1a1710; border:1px solid #3a3020; }
+  .msg.system { align-self:center; color:var(--muted); font-size:12.5px; background:transparent; text-align:center; }
+  .msg.crisis { align-self:stretch; max-width:100%; background:#2a1416; border:1px solid var(--rose); }
+  .trace { display:flex; flex-direction:column; gap:8px; max-height:34vh; overflow:auto; }
+  details { border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:var(--panel2); }
+  summary { cursor:pointer; font-family:var(--mono); font-size:12.5px; }
+  summary .ms { color:var(--dim); float:right; }
+  summary .tag { font-family:var(--sans); font-size:10.5px; color:var(--gold); border:1px solid rgba(232,184,106,.4); border-radius:999px; padding:0 6px; margin-left:6px; }
+  pre { margin:8px 0 0; font:11.5px/1.5 var(--mono); white-space:pre-wrap; word-break:break-word; color:#c7c2b6; max-height:240px; overflow:auto; }
   .empty { color:var(--muted); font-size:13px; }
-  .lens { display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:8px; margin-top:8px; }
-  .lens input, .lens select { width:100%; background:#0e1120; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 8px; font-size:13px; }
+  .lens { display:grid; grid-template-columns:repeat(auto-fit,minmax(84px,1fr)); gap:8px; margin-top:8px; }
+  .lens input { width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 8px; font-size:13px; }
   .lens label { font-size:11px; color:var(--muted); display:block; margin-bottom:2px; }
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
-  .disclosure { grid-column:1 / -1; font-size:12.5px; color:#a9aecb; line-height:1.7; background:#0e1120; }
-  .disclosure b { color:var(--text); }
   .settings { font-size:13px; color:var(--muted); }
-  .settings input { width:100%; background:#0e1120; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 8px; margin-top:4px; }
-  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:#c9cde6; }
+  .settings input[type=text], .settings input:not([type]) { width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 8px; margin-top:4px; }
+  code { font:12px var(--mono); color:#c7c2b6; }
+  .disclosure { max-width:1480px; margin:0 auto 28px; padding:0 24px; }
+  .disclosure div { font-size:12.5px; color:#a29d92; line-height:1.75; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; }
+  .disclosure b { color:var(--text); }
 </style>
 </head>
 <body>
 <header>
   <div>
-    <h1>Daily Reflection <span class="sub">— Alexa+ simulation</span></h1>
-    <div class="sub">A simulated voice assistant driving a real MCP server. Say or type <em>“Alexa, let's do my daily reflection.”</em></div>
+    <h1>Daily Reflection<span>Alexa+ simulation</span></h1>
+    <div class="sub">A simulated voice + screen assistant driving a real MCP server. Tap the mic and say <em>“let's do my daily reflection.”</em></div>
   </div>
   <div class="chips" id="chips"><span class="chip">connecting…</span></div>
 </header>
 
 <main>
-  <section>
-    <h2>Conversation</h2>
-    <div class="voice">
-      <button class="orb" id="orb" title="Hold a conversation by voice" aria-label="Talk">🎙</button>
-      <div class="state" id="state">Tap the orb and speak, or type below.</div>
-      <div class="quick">
-        <button class="sm" data-say="Alexa, let's do my daily reflection.">Start today's reflection</button>
-        <button class="sm" data-say="Alexa, read me my reflection history for this week.">This week's history</button>
-        <button class="sm" id="ttsToggle">🔊 Voice replies: on</button>
+  <div>
+    <div class="device">
+      <div class="screen" id="screen">
+        <div class="topbar"><span id="tbTime">—</span><span class="sim">SIMULATED · not Amazon Alexa</span></div>
+        <div class="viewport" id="viewport">
+          <div class="idle" id="idle"><div class="clock" id="clock">—</div><div class="date" id="date"></div>
+            <div class="hint">Say <em>“Let's do my daily reflection”</em><br>or <em>“How was my week?”</em></div></div>
+        </div>
+        <div class="caption" id="caption"><div class="you" id="capYou"></div><div class="say" id="capSay"></div></div>
+        <div class="lightbar" id="lightbar"></div>
       </div>
     </div>
-    <div class="log" id="log"></div>
+    <div class="controls">
+      <button class="mic" id="mic" title="Tap to talk" aria-label="Tap to talk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button>
+      <div class="state" id="state">Tap the mic and speak, or type below.</div>
+      <div class="quick">
+        <button class="sm" data-say="Let's do my daily reflection.">Start today's reflection</button>
+        <button class="sm" data-say="How was my week?">How was my week?</button>
+      </div>
+    </div>
     <form class="compose" id="compose">
-      <input id="text" placeholder="Type what you would say to Alexa…" autocomplete="off" maxlength="2000">
+      <input id="text" placeholder="Type what you would say…" autocomplete="off" maxlength="2000">
       <button id="send" type="submit">Send</button>
     </form>
-  </section>
+    <div class="toggles">
+      <label><input type="checkbox" id="ttsOn" checked> Voice replies</label>
+      <label><input type="checkbox" id="autoListen" checked> Keep listening after a question (hands-free)</label>
+    </div>
+  </div>
 
-  <section>
-    <h2>Behind the scenes — MCP calls</h2>
-    <div class="trace" id="trace"><div class="empty">Every tool call the host model makes over Streamable HTTP appears here, with arguments and the raw result.</div></div>
-    <h2 style="margin-top:18px">Optional lens — birth profile</h2>
-    <div class="empty">Sends a plain sentence to the assistant; the assistant calls <code>get_daily_lens</code> and uses the result as today's theme. Not a prediction.</div>
-    <div class="lens">
-      <div><label>Year</label><input id="by" type="number" min="1900" max="2100" placeholder="1990"></div>
-      <div><label>Month</label><input id="bm" type="number" min="1" max="12" placeholder="5"></div>
-      <div><label>Day</label><input id="bd" type="number" min="1" max="31" placeholder="15"></div>
-      <div><label>Hour (0–23)</label><input id="bh" type="number" min="0" max="23" placeholder="10"></div>
-      <div><label>Birth time zone</label><input id="btz" placeholder="Asia/Seoul"></div>
-    </div>
-    <div class="row">
-      <button class="sm" id="lensSend">Use this birth profile today</button>
-      <label class="settings" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="remember" style="width:auto;margin:0"> remember it on the server</label>
-    </div>
-    <h2 style="margin-top:18px">Your data</h2>
-    <div class="settings">Profile id for this browser: <code id="pid"></code>. Journal entries are stored on the server under this id only.</div>
-    <div class="row">
-      <button class="sm danger" id="delete">Delete my data on the server</button>
-      <button class="sm" id="reset">Clear this conversation</button>
-    </div>
-    <details style="margin-top:12px"><summary>Access token (only if this server requires one)</summary>
-      <div class="settings">Judges: the token is in the Devpost testing instructions. It is kept in this browser only.<input id="token" placeholder="X-DR-Token value"></div>
-    </details>
-  </section>
-
-  <section class="disclosure" id="disclosure">
-    <b>About this simulation.</b> This is not Amazon Alexa. The conversation is voiced by an AI language model (<b id="modelName">the model named by the server</b>, via OpenRouter) acting as a simulated Alexa+ host; the spoken audio is your browser's own speech synthesis. What you say or type is sent to that model provider to generate the reply, and voice input uses your browser's speech recognition, which may send audio to the browser vendor. Reflection prompts come from a rule-based question bank and, when you give a birth profile, from a rule-based Four-Pillars (saju) calculator. It is for reflection and entertainment — not a prediction of the future, and not medical, psychological, legal, or financial advice. Journal entries are stored on the server under this browser's profile id until you delete them with the button above. Intended for ages 13 and up. If you are in crisis or thinking about harming yourself, please reach out now: <a href="https://findahelpline.com" target="_blank" rel="noopener">findahelpline.com</a> lists free, confidential helplines by country.
-  </section>
+  <aside>
+    <section>
+      <h2>Transcript</h2>
+      <div class="log" id="log"></div>
+    </section>
+    <section>
+      <h2>Behind the scenes — MCP</h2>
+      <div class="trace" id="trace"><div class="empty">Every tool call the host model makes over Streamable HTTP appears here. Calls marked <b>ui://</b> also rendered their MCP App card on the screen.</div></div>
+    </section>
+    <section>
+      <h2>Optional lens — birth profile</h2>
+      <div class="empty">Sends a plain sentence to the assistant, which calls <code>get_daily_lens</code> and uses the result as today's theme. A reflection theme, not a prediction.</div>
+      <div class="lens">
+        <div><label>Year</label><input id="by" type="number" min="1900" max="2100" placeholder="1990"></div>
+        <div><label>Month</label><input id="bm" type="number" min="1" max="12" placeholder="5"></div>
+        <div><label>Day</label><input id="bd" type="number" min="1" max="31" placeholder="15"></div>
+        <div><label>Hour</label><input id="bh" type="number" min="0" max="23" placeholder="10"></div>
+        <div><label>Birth time zone</label><input id="btz" placeholder="Asia/Seoul"></div>
+      </div>
+      <div class="row">
+        <button class="sm" id="lensSend">Use this birth profile today</button>
+        <label class="settings" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="remember" style="width:auto;margin:0"> remember it on the server</label>
+      </div>
+    </section>
+    <section>
+      <h2>Your data</h2>
+      <div class="settings">Profile id for this browser: <code id="pid"></code>. Journal entries are stored on the server under this id only.</div>
+      <div class="row">
+        <button class="sm danger" id="delete">Delete my data on the server</button>
+        <button class="sm" id="reset">Clear this conversation</button>
+      </div>
+      <details style="margin-top:12px"><summary>Access token (only if this server requires one)</summary>
+        <div class="settings">Judges: the token is in the Devpost testing instructions. It is kept in this browser only.<input id="token" placeholder="X-DR-Token value"></div>
+      </details>
+    </section>
+  </aside>
 </main>
+
+<div class="disclosure"><div id="disclosure">
+  <b>About this simulation.</b> This is not Amazon Alexa. The conversation is voiced by an AI language model (<b id="modelName">the model named by the server</b>, served by <span id="modelHost">its provider</span>) acting as a simulated Alexa+ host. Spoken replies are synthesized by Google's Gemini API (<b id="ttsName">a text-to-speech model</b>); when you use the microphone, the recording is sent to Google's Gemini API (<b id="sttName">a transcription model</b>) to be turned into text and is not stored by this server. What you say or type is sent to the model provider to generate the reply. Reflection prompts come from a rule-based question bank and, when you give a birth profile, from a rule-based Four-Pillars (saju) calculator. It is for reflection and entertainment — not a prediction of the future, and not medical, psychological, legal, or financial advice. Journal entries are stored on the server under this browser's profile id until you delete them with the button above. Intended for ages 13 and up. If you are in crisis or thinking about harming yourself, please reach out now: <a href="https://findahelpline.com" target="_blank" rel="noopener">findahelpline.com</a> lists free, confidential helplines by country.
+</div></div>
 
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const log = $("log"), trace = $("trace"), orb = $("orb"), state = $("state"), input = $("text"), sendBtn = $("send");
+  const log = $("log"), trace = $("trace"), mic = $("mic"), state = $("state"), input = $("text"), sendBtn = $("send");
+  const viewport = $("viewport"), idle = $("idle"), caption = $("caption"), capYou = $("capYou"), capSay = $("capSay"), lightbar = $("lightbar");
   const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-  let profile = store.get("dr_profile", "");
-  if (!profile) { profile = "web-" + Math.random().toString(16).slice(2, 10); store.set("dr_profile", profile); }
+  let profile = new URLSearchParams(location.search).get("profile") || store.get("dr_profile", "");
+  if (!profile) { profile = "web-" + Math.random().toString(16).slice(2, 10); }
+  store.set("dr_profile", profile);
   $("pid").textContent = profile;
   $("token").value = store.get("dr_token", "");
   $("token").addEventListener("change", (e) => store.set("dr_token", e.target.value.trim()));
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Los_Angeles";
-  let history = [];
-  let tts = store.get("dr_tts", "on") === "on";
-  let busy = false, authRequired = false;
-  const setTts = (v) => { tts = v; store.set("dr_tts", v ? "on" : "off"); $("ttsToggle").textContent = v ? "🔊 Voice replies: on" : "🔇 Voice replies: off"; if (!v) speechSynthesis.cancel(); };
-  setTts(tts);
-  $("ttsToggle").onclick = () => setTts(!tts);
-
+  let history = [], busy = false, health = {};
+  const uiCache = {};
   const headers = () => { const h = { "Content-Type": "application/json" }; const t = store.get("dr_token", ""); if (t) h["X-DR-Token"] = t; return h; };
+  const setLight = (s) => { lightbar.className = "lightbar" + (s ? " " + s : ""); };
 
-  function addMsg(role, text) {
-    const d = document.createElement("div"); d.className = "msg " + role; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+  // ---- clock on the idle screen ----
+  function tick() {
+    const d = new Date();
+    const t = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    $("clock").textContent = t; $("tbTime").textContent = t;
+    $("date").textContent = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
   }
+  tick(); setInterval(tick, 10000);
+
+  function addMsg(role, text) { const d = document.createElement("div"); d.className = "msg " + role; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; }
   function addTrace(t) {
     if (trace.querySelector(".empty")) trace.innerHTML = "";
     const d = document.createElement("details");
-    const s = document.createElement("summary"); s.textContent = "tools/call " + t.tool; const ms = document.createElement("span"); ms.className = "ms"; ms.textContent = t.ms + " ms"; s.appendChild(ms);
-    const pre = document.createElement("pre"); pre.textContent = "→ " + JSON.stringify(t.args) + "\n\n← " + JSON.stringify(t.result, null, 2);
+    const s = document.createElement("summary"); s.textContent = "tools/call " + t.tool;
+    if (t.ui) { const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = "ui://"; tag.title = t.ui; s.appendChild(tag); }
+    const ms = document.createElement("span"); ms.className = "ms"; ms.textContent = t.ms + " ms"; s.appendChild(ms);
+    const pre = document.createElement("pre"); pre.textContent = "→ " + JSON.stringify(t.args) + "\n\n← " + JSON.stringify(t.result, null, 2) + (t.ui ? "\n\nrendered: " + t.ui : "");
     d.append(s, pre); trace.prepend(d);
   }
-  function speak(text) {
-    if (!tts || !("speechSynthesis" in window)) return Promise.resolve();
-    return new Promise((resolve) => {
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.rate = 1.0;
-      const v = speechSynthesis.getVoices().find((x) => /en[-_]US/i.test(x.lang) && /female|samantha|aria|jenny|zira/i.test(x.name)) || speechSynthesis.getVoices().find((x) => /en[-_]US/i.test(x.lang));
-      if (v) u.voice = v;
-      orb.classList.add("speaking"); state.textContent = "Speaking…";
-      u.onend = u.onerror = () => { orb.classList.remove("speaking"); state.textContent = "Tap the orb to answer."; resolve(); };
-      speechSynthesis.speak(u);
-    });
+  function showCaption(you, say) { capYou.textContent = you ? "You: " + you : ""; capSay.textContent = say || ""; caption.classList.toggle("show", Boolean(you || say)); }
+
+  // ---- MCP Apps host side: render a ui:// view in a sandboxed iframe and speak its postMessage protocol ----
+  // sandbox="allow-scripts" without allow-same-origin gives the view an opaque origin, so it cannot reach this
+  // page, its storage or the access token. The view gets the tool input + result and may ask for ui/message.
+  let current = null; // { frame, tool, args, result, ready }
+  function renderView(t) {
+    const res = uiCache[t.ui]; if (!res || !res.html) return;
+    const frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.setAttribute("title", "MCP App: " + t.tool);
+    frame.srcdoc = res.html;
+    const prev = current;
+    current = { frame, tool: t.tool, args: t.args, result: t.result, ready: false };
+    viewport.appendChild(frame);
+    idle.classList.add("gone");
+    if (prev) {
+      post(prev.frame, { jsonrpc: "2.0", id: "teardown-" + Date.now(), method: "ui/resource-teardown", params: { reason: "replaced" } });
+      prev.frame.classList.remove("show"); setTimeout(() => prev.frame.remove(), 500);
+    }
+  }
+  const post = (frame, msg) => { try { frame.contentWindow.postMessage(msg, "*"); } catch {} };
+  window.addEventListener("message", (e) => {
+    const view = current && current.frame.contentWindow === e.source ? current : null;
+    if (!view) return;
+    const m = e.data; if (!m || m.jsonrpc !== "2.0") return;
+    const reply = (result) => post(view.frame, { jsonrpc: "2.0", id: m.id, result });
+    const fail = (code, message) => post(view.frame, { jsonrpc: "2.0", id: m.id, error: { code, message } });
+    switch (m.method) {
+      case "ui/initialize":
+        return reply({ protocolVersion: "2026-01-26", hostInfo: { name: "daily-reflection-web-sim", version: "0.2.0" },
+          hostCapabilities: { message: {}, openLinks: {} },
+          hostContext: { theme: "dark", displayMode: "fullscreen", platform: "web", locale: "en-US", timeZone: tz, toolInfo: { tool: { name: view.tool } } } });
+      case "ui/notifications/initialized":
+        view.ready = true;
+        post(view.frame, { jsonrpc: "2.0", method: "ui/notifications/tool-input", params: { arguments: view.args } });
+        post(view.frame, { jsonrpc: "2.0", method: "ui/notifications/tool-result", params: { content: [{ type: "text", text: JSON.stringify(view.result) }], structuredContent: view.result } });
+        requestAnimationFrame(() => view.frame.classList.add("show"));
+        return;
+      case "ui/message": {
+        const text = m.params && m.params.content && m.params.content.text;
+        reply({}); if (text) send(text, { spoken: false });
+        return;
+      }
+      case "ui/open-link": reply({}); if (m.params && /^https:\/\//.test(m.params.url)) window.open(m.params.url, "_blank", "noopener"); return;
+      case "ui/notifications/size-changed": return; // the screen is a fixed fullscreen viewport
+      default: if (m.id != null && m.method) fail(-32601, "Not supported by this host: " + m.method);
+    }
+  });
+
+  // ---- voice out: server TTS (Gemini), browser speech synthesis as the fallback ----
+  let audio = null;
+  function stopSpeaking() { if (audio) { audio.pause(); audio = null; } if ("speechSynthesis" in window) speechSynthesis.cancel(); }
+  async function speak(text) {
+    if (!$("ttsOn").checked || !text) return;
+    stopSpeaking();
+    setLight("speaking"); state.textContent = "Speaking…";
+    try {
+      if (!(health.speech && health.speech.configured)) throw new Error("no server voice");
+      const res = await fetch("/sim/tts", { method: "POST", headers: headers(), body: JSON.stringify({ text }) });
+      if (!res.ok) throw new Error("tts " + res.status);
+      const url = URL.createObjectURL(await res.blob());
+      audio = new Audio(url);
+      await new Promise((resolve) => { audio.onended = audio.onerror = resolve; audio.play().catch(resolve); });
+      URL.revokeObjectURL(url);
+    } catch {
+      if ("speechSynthesis" in window) await new Promise((resolve) => { const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.onend = u.onerror = resolve; speechSynthesis.speak(u); });
+    } finally { setLight(""); audio = null; }
   }
 
-  async function send(text) {
+  // ---- one conversation turn ----
+  async function send(text, { spoken = false } = {}) {
     text = (text || "").trim(); if (!text || busy) return;
-    busy = true; sendBtn.disabled = true; orb.classList.add("thinking"); state.textContent = "Thinking… (free-tier model, may take 10–20 s)";
+    busy = true; sendBtn.disabled = true; mic.disabled = true; setLight("thinking"); state.textContent = "Thinking…";
+    stopSpeaking();
     addMsg("user", text); history.push({ role: "user", content: text });
+    showCaption(text, "");
+    let reply = "", endsWithQuestion = false;
     try {
       const res = await fetch("/sim/chat", { method: "POST", headers: headers(), body: JSON.stringify({ messages: history, profile_id: profile, tz }) });
       const out = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const why = res.status === 401 ? "This server requires an access token — open “Access token” on the right and paste it." : (out.message || out.error || ("HTTP " + res.status));
-        addMsg("system", why); history.pop(); return;
+        const why = res.status === 401 ? "This server requires an access token — open “Access token” and paste it." : (out.message || out.error || ("HTTP " + res.status));
+        addMsg("system", why); history.pop(); showCaption("", why); return;
       }
+      Object.assign(uiCache, out.ui_resources || {});
       (out.trace || []).forEach(addTrace);
+      const withUi = (out.trace || []).filter((t) => t.ui && !(t.result && t.result.error));
+      if (withUi.length) renderView(withUi[withUi.length - 1]);
       const replyHasReferral = out.crisis_referral && out.reply.startsWith(out.crisis_referral.slice(0, 40));
       if (out.crisis_referral && !replyHasReferral) addMsg("crisis", out.crisis_referral);
-      addMsg("assistant", out.reply); history.push({ role: "assistant", content: out.reply, trace: (out.trace || []).map((t) => ({ tool: t.tool, args: t.args, result: t.result })) });
-      state.textContent = "Turn took " + (out.ms / 1000).toFixed(1) + " s · " + (out.trace || []).length + " MCP call(s)";
-      await speak((out.crisis_referral && !replyHasReferral ? out.crisis_referral + " " : "") + out.reply);
+      reply = (out.crisis_referral && !replyHasReferral ? out.crisis_referral + " " : "") + out.reply;
+      addMsg("assistant", out.reply);
+      history.push({ role: "assistant", content: out.reply, trace: (out.trace || []).map((t) => ({ tool: t.tool, args: t.args, result: t.result })) });
+      showCaption("", reply);
+      state.textContent = "Turn " + (out.ms / 1000).toFixed(1) + " s · " + (out.trace || []).length + " MCP call(s)";
+      endsWithQuestion = /\?\s*$/.test(out.reply) && !out.crisis_referral;
     } catch (e) {
       addMsg("system", "Network error: " + e.message); history.pop();
-    } finally { busy = false; sendBtn.disabled = false; orb.classList.remove("thinking"); }
+    } finally { busy = false; sendBtn.disabled = false; mic.disabled = !voiceIn; setLight(""); }
+    await speak(reply);
+    if (spoken && endsWithQuestion && $("autoListen").checked && voiceIn) startListening();
+    else state.textContent = "Tap the mic to answer.";
+  }
+
+  // ---- voice in: record → server transcription (Gemini); browser speech recognition as the fallback ----
+  let voiceIn = false, rec = null;
+  async function startListening() {
+    if (rec || busy) return;
+    stopSpeaking();
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+    catch { state.textContent = "Microphone permission was not granted — type instead."; return; }
+    const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"].find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || "";
+    const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    const chunks = [];
+    mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    // End of speech: a simple level detector — stop after ~1.3 s of quiet once speech has started (cap 25 s).
+    const ac = new AudioContext(); const src = ac.createMediaStreamSource(stream); const an = ac.createAnalyser(); an.fftSize = 1024; src.connect(an);
+    const buf = new Float32Array(an.fftSize); let heard = false, quietSince = 0; const t0 = performance.now();
+    const loop = () => {
+      if (!rec) return;
+      an.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v; const rms = Math.sqrt(s / buf.length);
+      const now = performance.now();
+      if (rms > 0.02) { heard = true; quietSince = 0; } else if (heard && !quietSince) quietSince = now;
+      if ((heard && quietSince && now - quietSince > 1300) || now - t0 > 25000 || (!heard && now - t0 > 8000)) return stopListening();
+      requestAnimationFrame(loop);
+    };
+    rec = { mr, stream, ac, heard: () => heard };
+    mr.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop()); ac.close();
+      const wasHeard = heard; rec = null; mic.classList.remove("rec"); setLight("");
+      if (!wasHeard) { state.textContent = "I didn't catch anything — tap the mic to try again."; return; }
+      state.textContent = "Transcribing…"; setLight("thinking");
+      const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
+      const b64 = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(blob); });
+      try {
+        const res = await fetch("/sim/stt", { method: "POST", headers: headers(), body: JSON.stringify({ audio: b64, mimeType: blob.type }) });
+        const out = await res.json().catch(() => ({}));
+        setLight("");
+        if (!res.ok || !out.text) { state.textContent = res.status === 401 ? "Access token needed." : "I didn't catch that — tap the mic to try again."; return; }
+        send(out.text, { spoken: true });
+      } catch { setLight(""); state.textContent = "Network error while transcribing."; }
+    };
+    mr.start(); mic.classList.add("rec"); setLight("listening"); state.textContent = "Listening…"; showCaption("", capSay.textContent);
+    requestAnimationFrame(loop);
+  }
+  function stopListening() { if (rec && rec.mr.state !== "inactive") rec.mr.stop(); }
+
+  function setupBrowserRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { mic.disabled = true; state.textContent = "No microphone path in this browser — type below."; return; }
+    const r = new SR(); r.lang = "en-US"; r.interimResults = false; r.continuous = false;
+    r.onstart = () => { mic.classList.add("rec"); setLight("listening"); state.textContent = "Listening…"; };
+    r.onresult = (e) => { const t = Array.from(e.results).map((x) => x[0].transcript).join(" "); send(t, { spoken: true }); };
+    r.onend = () => { mic.classList.remove("rec"); if (!busy) setLight(""); };
+    mic.onclick = () => { if (!busy) { stopSpeaking(); r.start(); } };
+    voiceIn = true; mic.disabled = false;
   }
 
   $("compose").addEventListener("submit", (e) => { e.preventDefault(); const t = input.value; input.value = ""; send(t); });
   document.querySelectorAll("[data-say]").forEach((b) => b.addEventListener("click", () => send(b.dataset.say)));
-  $("reset").onclick = () => { history = []; log.innerHTML = ""; trace.innerHTML = '<div class="empty">Cleared.</div>'; speechSynthesis.cancel(); };
+  $("ttsOn").addEventListener("change", (e) => { if (!e.target.checked) stopSpeaking(); });
+  $("reset").onclick = () => {
+    history = []; log.innerHTML = ""; trace.innerHTML = '<div class="empty">Cleared.</div>'; stopSpeaking(); showCaption("", "");
+    if (current) { current.frame.remove(); current = null; } idle.classList.remove("gone");
+  };
   $("delete").onclick = async () => {
     if (!confirm("Delete every journal entry and any remembered birth profile stored under " + profile + "?")) return;
     const res = await fetch("/profiles/" + encodeURIComponent(profile), { method: "DELETE", headers: headers() });
@@ -199,38 +397,29 @@
   $("lensSend").onclick = () => {
     const y = $("by").value, m = $("bm").value, d = $("bd").value, h = $("bh").value, z = $("btz").value.trim();
     if (!(y && m && d && h !== "" && z)) { addMsg("system", "Fill in year, month, day, hour and a birth time zone first."); return; }
-    send(`Alexa, here is my birth profile: year ${y}, month ${m}, day ${d}, hour ${h}, time zone ${z}. ${$("remember").checked ? "Please remember it." : "Do not store it."} Use it as today's lens.`);
+    send(`Here is my birth profile: year ${y}, month ${m}, day ${d}, hour ${h}, time zone ${z}. ${$("remember").checked ? "Please remember it." : "Do not store it."} Use it as today's lens.`);
   };
 
-  // Voice input (Chrome/Edge: webkitSpeechRecognition; otherwise typing only — noted in the friction log).
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { orb.disabled = true; orb.title = "Speech recognition is not available in this browser — type instead"; state.textContent = "No speech recognition in this browser (Chrome or Edge has it). Type below."; }
-  else {
-    const rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false;
-    let interim = null;
-    rec.onstart = () => { orb.classList.add("listening"); state.textContent = "Listening…"; };
-    rec.onresult = (e) => {
-      let text = ""; for (const r of e.results) text += r[0].transcript;
-      if (!interim) interim = addMsg("system", ""); interim.textContent = "… " + text;
-      if (e.results[e.results.length - 1].isFinal) { interim.remove(); interim = null; send(text); }
-    };
-    rec.onerror = (e) => { state.textContent = "Mic: " + e.error; };
-    rec.onend = () => { orb.classList.remove("listening"); if (interim) { interim.remove(); interim = null; } };
-    orb.onclick = () => { if (busy) return; speechSynthesis.cancel(); if (orb.classList.contains("listening")) rec.stop(); else rec.start(); };
-  }
-
-  // Server facts for the chips + the exact model name in the disclosure.
+  // ---- server facts: chips + exact model names in the disclosure ----
   fetch("/health").then((r) => r.json()).then((h) => {
-    authRequired = !!h.auth_required;
+    health = h;
+    const nebius = h.sim && /nebius/.test(h.sim.api_base || "");
     const chips = [
       ["MCP " + h.protocolVersion + " · streamable-http", "on"],
-      [h.lens_configured ? "saju lens: connected" : "saju lens: off", h.lens_configured ? "on" : "off"],
-      [h.sim && h.sim.configured ? "host model: " + h.sim.model + (h.sim.api_base && /nebius/.test(h.sim.api_base) ? " · Nebius Token Factory" : "") : "host model: not configured", h.sim && h.sim.configured ? "on" : "off"],
-      [authRequired ? "token required" : "open demo", ""],
+      [h.mcp_apps ? "MCP Apps: " + h.mcp_apps.tools.length + " tools → ui://" : "MCP Apps: off", h.mcp_apps ? "on" : "off"],
+      [h.sim && h.sim.configured ? "host model: " + h.sim.model + (nebius ? " · Nebius" : "") : "host model: not configured", h.sim && h.sim.configured ? "on" : "off"],
+      [h.speech && h.speech.configured ? "voice: Gemini" : "voice: browser", h.speech && h.speech.configured ? "on" : ""],
+      [h.auth_required ? "token required" : "open demo", ""],
     ];
     $("chips").innerHTML = chips.map(([t, c]) => `<span class="chip ${c}">${t.replace(/</g, "&lt;")}</span>`).join("");
     if (h.sim && h.sim.model) $("modelName").textContent = h.sim.model;
-    if (authRequired && !store.get("dr_token", "")) addMsg("system", "This server requires an access token. Open “Access token” on the right and paste it before starting.");
+    $("modelHost").textContent = nebius ? "Nebius Token Factory" : (h.sim && h.sim.api_base ? new URL(h.sim.api_base).host : "its provider");
+    if (h.speech) { $("ttsName").textContent = h.speech.tts_model; $("sttName").textContent = h.speech.stt_model; }
+    if (h.speech && h.speech.configured && navigator.mediaDevices && window.MediaRecorder) {
+      voiceIn = true; mic.disabled = false;
+      mic.onclick = () => { if (busy) return; if (rec) stopListening(); else startListening(); };
+    } else setupBrowserRecognition();
+    if (h.auth_required && !store.get("dr_token", "")) addMsg("system", "This server requires an access token. Open “Access token” and paste it before starting.");
   }).catch(() => { $("chips").innerHTML = '<span class="chip off">server unreachable</span>'; });
 })();
 </script>

@@ -158,3 +158,37 @@ test("sim model request: OpenRouter gets reasoning:{enabled:false}; a non-OpenRo
   assert.match(b.url, /tokenfactory\.nebius\.com/); assert.deepEqual(b.body.chat_template_kwargs, { enable_thinking: false }); assert.equal(b.body.reasoning, undefined); assert.equal(b.headers["X-Title"], undefined); assert.equal(b.headers.Authorization, "Bearer k2");
   assert.equal(b.body.model, "nvidia/nemotron-3-super-120b-a12b");
 });
+
+test("sim turn: a narrated tool call ('Calling get_reflection_prompt.') is nudged once into a real call; the ui:// view comes back", async () => {
+  delete process.env.DR_ACCESS_TOKEN;
+  const { fetchImpl, seen } = fakeModel([
+    () => ({ role: "assistant", content: "Let's start. Calling get_reflection_prompt." }),
+    () => ({ role: "assistant", content: null, tool_calls: [{ id: "c1", type: "function", function: { name: "get_reflection_prompt", arguments: "{}" } }] }),
+    () => ({ role: "assistant", content: "Theme first. What did today ask of you?" }),
+  ]);
+  const app = await boot({ sim: makeSimAgent({ env: { OPENROUTER_API_KEY: "test" }, fetchImpl }) });
+  try {
+    const out = await (await fetch(`${app.base}/sim/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: "Let's do my daily reflection." }], profile_id: "web-n", tz: "UTC" }) })).json();
+    assert.equal(seen.length, 3);
+    assert.match(seen[1].messages.at(-1).content, /described a tool call/);
+    assert.deepEqual(out.trace.map((t) => t.tool), ["get_reflection_prompt"]);
+    assert.equal(out.trace[0].ui, "ui://daily-reflection/card.html");
+    assert.match(out.ui_resources["ui://daily-reflection/card.html"].html, /ui\/initialize/);
+    assert.equal(out.reply, "Theme first. What did today ask of you?");
+  } finally { await app.close(); }
+});
+
+test("sim turn: tool arguments printed as text are also treated as an intended call", async () => {
+  delete process.env.DR_ACCESS_TOKEN;
+  const { fetchImpl, seen } = fakeModel([
+    () => ({ role: "assistant", content: 'This is for reflection only. Let\'s start.\n\n{\n  "profile_id": "x",\n  "tz": "UTC"\n}' }),
+    () => ({ role: "assistant", content: null, tool_calls: [{ id: "c1", type: "function", function: { name: "get_reflection_prompt", arguments: "{}" } }] }),
+    () => ({ role: "assistant", content: "What did today ask of you?" }),
+  ]);
+  const app = await boot({ sim: makeSimAgent({ env: { OPENROUTER_API_KEY: "test" }, fetchImpl }) });
+  try {
+    const out = await (await fetch(`${app.base}/sim/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: "Let's do my daily reflection." }], profile_id: "web-n2", tz: "UTC" }) })).json();
+    assert.equal(seen.length, 3);
+    assert.deepEqual(out.trace.map((t) => t.tool), ["get_reflection_prompt"]);
+  } finally { await app.close(); }
+});

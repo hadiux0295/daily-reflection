@@ -127,11 +127,23 @@ export function makeTools({ store, lens, now = () => new Date() }) {
     return { date: day, weekday: p.weekday, season: p.season, theme, questions: p.questions, lens_available, ...(lens_focus ? { lens_focus } : {}), provenance, disclosure: DISCLOSURE };
   }
 
+  /** Last 7 days (oldest first) for the display card: did the user reflect that day, and with which mood. */
+  function weekStrip(profile_id, today) {
+    const rows = store.listEntries(profile_id, addDays(today, -6));
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(today, i - 6);
+      const hit = rows.filter((r) => r.date === date);
+      const mood = hit.map((r) => r.mood).find(Boolean) || null;
+      return { date, weekday: new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }), done: hit.length > 0, mood };
+    });
+  }
+
   async function save_journal_entry({ profile_id = DEFAULT_PROFILE, text, mood, tags = [], date, tz = DEFAULT_TZ }) {
     const day = resolveDate(date, tz);
     const id = store.addEntry(profile_id, { date: day, text, mood: mood || null, tags });
-    const streak = computeStreak(store.entryDates(profile_id), todayIn(tz, now()));
-    const out = { id, date: day, streak, entry_count: store.entryCount(profile_id), disclosure: DISCLOSURE };
+    const today = todayIn(tz, now());
+    const streak = computeStreak(store.entryDates(profile_id), today);
+    const out = { id, date: day, streak, entry_count: store.entryCount(profile_id), week: weekStrip(profile_id, today), disclosure: DISCLOSURE };
     if (detectCrisis(text)) out.crisis_referral = CRISIS_REFERRAL;
     return out;
   }
@@ -141,7 +153,7 @@ export function makeTools({ store, lens, now = () => new Date() }) {
     const since = addDays(today, -(days - 1));
     const rows = store.listEntries(profile_id, since);
     const entries = rows.map((r) => ({ id: r.id, date: r.date, mood: r.mood || null, text_preview: r.text.length > 120 ? r.text.slice(0, 117) + "…" : r.text, tags: r.tags }));
-    return { days, entries, streak: computeStreak(store.entryDates(profile_id), today), mood_trend: moodTrend(rows), disclosure: DISCLOSURE };
+    return { days, entries, streak: computeStreak(store.entryDates(profile_id), today), mood_trend: moodTrend(rows), week: weekStrip(profile_id, today), disclosure: DISCLOSURE };
   }
 
   return { get_reflection_prompt, get_daily_lens, save_journal_entry, get_reflection_history };
